@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>DopaGut</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap"
+    rel="stylesheet" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+    rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet" />
+
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "dopa-yellow": "#FAFF00", // Also #FFEB3B in some contexts
+            "dopa-pink": "#FF6B6B", // Also #FF00CC
+            "dopa-purple": "#9D00FF",
+            "dopa-cyan": "#00FFFF",
+            "dopa-lime": "#39FF14",
+            "dopa-black": "#000000",
+            "dopa-white": "#FFFFFF",
+            "dopa-blue": "#4D4DFF",
+            "dopa-orange": "#FF9F1C",
+            "card-bg": "#3D5AFE",
+          },
+          fontFamily: {
+            sans: ["Noto Sans SC", "sans-serif"],
+            display: ["Bungee", "cursive", "Noto Sans SC"],
+          },
+          boxShadow: {
+            neo: "4px 4px 0px 0px #000000",
+            "neo-lg": "8px 8px 0px 0px #000000",
+            "neo-sm": "2px 2px 0px 0px #000000",
+            "neo-white": "4px 4px 0px 0px #FFFFFF",
+          },
+          animation: {
+            'wiggle': 'wiggle 3s infinite ease-in-out',
+            'marquee': 'marquee 40s linear infinite',
+            'bg-scroll-odd': 'bg-scroll-odd 3s linear infinite',
+            'bg-scroll-even': 'bg-scroll-even 3s linear infinite',
+          },
+          keyframes: {
+            wiggle: {
+              '0%, 100%': { transform: 'skewX(0deg)' },
+              '50%': { transform: 'skewX(2deg)' },
+            },
+            marquee: {
+              '0%': { transform: 'translateX(0%)' },
+              '100%': { transform: 'translateX(-100%)' },
+            },
+            'bg-scroll-odd': {
+              '0%': { 'background-position': '0px 0px' },
+              '100%': { 'background-position': '-60px 0px' },
+            },
+            'bg-scroll-even': {
+              '0%': { 'background-position': '0px 60px' },
+              '100%': { 'background-position': '60px 60px' },
+            }
+          }
+        },
+      },
+    };
+  </script>
+  <style>
+    body {
+      /* Prevent bounce on mobile */
+      overscroll-behavior-y: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .hide-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+
+    .hide-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    /* --- Custom Neo-Brutalism Scrollbar (Only used where explicitly needed) --- */
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 12px;
+      height: 12px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #FFFFFF;
+      border-left: 2px solid #000000;
+      border-top: 2px solid #000000;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background-color: #000000;
+      border: 2px solid #FFFFFF;
+      border-radius: 0px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background-color: #FAFF00;
+      /* Dopa Yellow on hover */
+    }
+
+    /* Custom Range Slider Styling */
+    input[type=range] {
+      -webkit-appearance: none;
+      appearance: none;
+      background: transparent;
+    }
+
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 32px;
+      width: 32px;
+      border-radius: 9999px;
+      background: #FAFF00;
+      border: 3px solid black;
+      cursor: pointer;
+      margin-top: -12px;
+      box-shadow: 2px 2px 0px black;
+    }
+
+    input[type=range]::-webkit-slider-runnable-track {
+      width: 100%;
+      height: 12px;
+      cursor: pointer;
+      background: #000000;
+      border-radius: 9999px;
+      border: 3px solid black;
+      background-color: white;
+    }
+
+    .neo-press:active {
+      transform: translate(2px, 2px);
+      box-shadow: 0px 0px 0px 0px #000000;
+    }
+
+    /* Material Symbols Fill fix */
+    .material-symbols-outlined.filled {
+      font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+
+    /* 打点动画 */
+    @keyframes dot-pulse {
+
+      0%,
+      100% {
+        opacity: 0.2;
+      }
+
+      50% {
+        opacity: 1;
+      }
+    }
+
+    .dot-pulse {
+      animation: dot-pulse 1.4s infinite;
+    }
+  </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "react": "https://esm.sh/react@^19.2.4",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/"
+  }
+}
+</script>
+  <!-- Screenshot Library -->
+  <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.13/dist/html-to-image.min.js"></script>
+  <link rel="stylesheet" href="/index.css">
+</head>
+
+<body class="bg-dopa-purple text-dopa-black min-h-screen">
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+
+</html>
