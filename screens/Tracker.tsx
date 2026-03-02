@@ -80,8 +80,10 @@ export default function Tracker({ state, setState, userId, onRefreshProfile, t, 
    const BRISTOL_SCALE = getBristolScale(t);
 
    // 初始化 / 恢复计时器
+   // NOTE: 增加 visibility 感知，tab 隐藏时跳过更新避免回调堆积
    useEffect(() => {
       const calcSeconds = () => {
+         if (document.visibilityState !== 'visible') return;
          if (state.startTime) {
             const now = new Date();
             const diff = Math.floor((now.getTime() - state.startTime.getTime()) / 1000);

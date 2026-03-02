@@ -302,9 +302,11 @@ const Map: React.FC<MapProps> = ({ onNavigate, profile, userId, t, isActive }) =
     }, [profile, mates, hasGroup, userId, t]);
 
     // 随机气泡特效
+    // NOTE: 增加 visibility 感知，tab 隐藏时跳过，避免回调堆积
     useEffect(() => {
         if (mapUsers.length <= 1) return;
         const triggerRandomBubble = () => {
+            if (document.visibilityState !== 'visible') return;
             const others = mapUsers.filter(u => u.id !== selectedUser && !u.isCurrentUser);
             if (others.length > 0) {
                 const randomUser = others[Math.floor(Math.random() * others.length)];
@@ -457,11 +459,12 @@ const Map: React.FC<MapProps> = ({ onNavigate, profile, userId, t, isActive }) =
                     const halfW = safeWidth / 2;
                     const halfH = safeHeight / 2;
 
+                    // NOTE: 保护 dx===0 时的除零错误，避免 CSS top: Infinity
                     let absX = halfW;
-                    let absY = Math.abs(dy / dx) * halfW;
+                    let absY = dx !== 0 ? Math.abs(dy / dx) * halfW : halfH;
                     if (absY > halfH) {
                         absY = halfH;
-                        absX = Math.abs(dx / dy) * halfH;
+                        absX = dy !== 0 ? Math.abs(dx / dy) * halfH : halfW;
                     }
 
                     const indX = safeCenterX + Math.sign(dx) * absX;

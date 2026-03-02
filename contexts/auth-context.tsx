@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { authService, profileService, Profile } from '../lib/api';
 import type { User, Session } from '@supabase/supabase-js';
 
@@ -15,8 +15,6 @@ interface AuthContextType {
     loading: boolean;
     /** 邮箱是否已确认 */
     emailConfirmed: boolean;
-    /** 是否检测到跨标签页身份认证冲突 */
-    authConflict: boolean;
     /** 登录 */
     signIn: (email: string, password: string) => Promise<void>;
     /** 注册（支持邀请码和位置） */
@@ -37,12 +35,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [profile, setProfile] = useState<Profile | null>(null);
     const [loading, setLoading] = useState(true);
-    const [authConflict, setAuthConflict] = useState(false);
 
     /**
      * 加载用户档案
      * 认证成功后自动调用，获取 profiles 表中的完整数据。
-     * 如果记录不存在则尝试创建一个（修复死锁）。
+     * 如果记录不存在则尝试创建一个。
      */
     const loadProfile = useCallback(async (userId: string, name?: string) => {
         try {
@@ -62,263 +59,111 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     }, [user, loadProfile]);
 
-    // NOTE: 标志位，区分用户主动退出和跨标签页被动 SIGNED_OUT
-    const isSigningOutRef = React.useRef(false);
+    // NOTE: 标志位，区分用户主动退出和 Supabase 内部触发的 SIGNED_OUT
+    const isSigningOutRef = useRef(false);
 
-    // 初始化：检查现有会话 + 监听认证状态变化
+    // =============================================
+    // 核心认证逻辑：「不与 Supabase 争 Lock」架构
+    // =============================================
+    //
+    // NOTE: 死锁根因（第三次排查确认）——
+    // Supabase v2.96 GoTrueClient 使用 _acquireLock + pendingInLock 队列机制。
+    // 当 visibilitychange 触发 Supabase 内部的 _onVisibilityChanged：
+    //   1. 获取 lock → _recoverAndRefresh → _callRefreshToken（成功，200）
+    //   2. _notifyAllSubscribers('TOKEN_REFRESHED') —— await 所有回调
+    //   3. 如果回调中 await 了 Supabase API（如 loadProfile 内部的查询）
+    //      → 这些 API 也需要获取同一个 lock → 被放入 pendingInLock
+    //   4. 外层 lock 等待 pendingInLock 完成 → pendingInLock 等待回调完成
+    //      → 回调等待 API 完成 → API 被 pendingInLock 阻塞 = 💀 死锁
+    //
+    // 解决方案：
+    //   - onAuthStateChange 回调中只做内存状态更新（setUser/setProfile）
+    //   - loadProfile 等 Supabase API 调用用 setTimeout(0) 推迟到 lock 释放后
+    //   - 不注册自己的 visibilitychange handler（让 Supabase 独自管理）
+    //   - 不在回调中调用 refreshSession（会争 lock）
+    //
     useEffect(() => {
         let mounted = true;
-        let authCurrentUserId: string | null = null;
 
-        // =============================================
-        // 跨标签页冲突检测核心机制
-        // =============================================
-        // NOTE: 使用 localStorage 中的「标签页注册表」让所有标签页互相感知对方的 userId。
-        // 每个标签页在登录成功后将自己的 tabId→userId 写入注册表；
-        // 定时轮询检查注册表中是否存在不同的 userId → 存在则显示 Banner。
-        // 这比事件驱动更可靠，因为延迟死锁场景中不一定会触发 storage/authStateChange 事件。
-
-        const TAB_REGISTRY_KEY = 'dopagut_tab_registry';
-        const TAB_USER_KEY = 'dopagut_tab_user_id';
-        // 每个标签页的唯一 ID（用 sessionStorage 保证 tab 级隔离）
-        const tabId = sessionStorage.getItem('dopagut_tab_id') || `tab_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-        sessionStorage.setItem('dopagut_tab_id', tabId);
+        // NOTE: 清理旧版冲突检测机制遗留的数据
+        try {
+            localStorage.removeItem('dopagut_tab_registry');
+            sessionStorage.removeItem('dopagut_tab_id');
+            sessionStorage.removeItem('dopagut_tab_user_id');
+            sessionStorage.removeItem('dopagut_tab_reload_count');
+        } catch (_e) { /* ignore */ }
 
         /**
-         * 将本标签页的 userId 注册到全局注册表中
-         * 同时清理超过 30 秒未心跳的过期标签页
+         * 初始化认证状态
+         * 从 Supabase 获取当前 session，如果有则加载 profile
          */
-        const registerTab = (userId: string) => {
-            try {
-                const registry: Record<string, { userId: string; ts: number }> =
-                    JSON.parse(localStorage.getItem(TAB_REGISTRY_KEY) || '{}');
-                // 写入/更新本标签页
-                registry[tabId] = { userId, ts: Date.now() };
-                // 清理超过 30 秒未更新的过期条目
-                const cutoff = Date.now() - 30000;
-                for (const key of Object.keys(registry)) {
-                    if (registry[key].ts < cutoff) delete registry[key];
-                }
-                localStorage.setItem(TAB_REGISTRY_KEY, JSON.stringify(registry));
-            } catch (_e) { /* localStorage 满或不可用时静默忽略 */ }
-        };
-
-        /**
-         * 检查注册表中是否存在与本标签页不同 userId 的活跃标签页
-         */
-        const checkRegistryConflict = (): boolean => {
-            if (!authCurrentUserId) return false;
-            try {
-                const registry: Record<string, { userId: string; ts: number }> =
-                    JSON.parse(localStorage.getItem(TAB_REGISTRY_KEY) || '{}');
-                const cutoff = Date.now() - 30000;
-                for (const [key, entry] of Object.entries(registry)) {
-                    if (key === tabId) continue;
-                    // 只对比 30 秒内活跃的标签页
-                    if (entry.ts >= cutoff && entry.userId !== authCurrentUserId) {
-                        return true;
-                    }
-                }
-            } catch (_e) { }
-            return false;
-        };
-
-        /** 注销本标签页（页面卸载时调用） */
-        const unregisterTab = () => {
-            try {
-                const registry = JSON.parse(localStorage.getItem(TAB_REGISTRY_KEY) || '{}');
-                delete registry[tabId];
-                localStorage.setItem(TAB_REGISTRY_KEY, JSON.stringify(registry));
-            } catch (_e) { }
-        };
-
-        // 终极防死锁机制：10 秒内重载 ≥2 次则直接触发
-        const RELOAD_KEY = 'dopagut_tab_reload_count';
-        const now = Date.now();
-        const reloadInfo = JSON.parse(sessionStorage.getItem(RELOAD_KEY) || '{"count":0, "time":0}');
-        let isDeadlocked = false;
-
-        if (now - reloadInfo.time < 10000) {
-            if (reloadInfo.count >= 2) {
-                isDeadlocked = true;
-                setAuthConflict(true);
-                console.error('💥 灾难级防卡死机制触发！');
-                sessionStorage.setItem(RELOAD_KEY, JSON.stringify({ count: 0, time: 0 }));
-                setLoading(false);
-            } else {
-                sessionStorage.setItem(RELOAD_KEY, JSON.stringify({ count: reloadInfo.count + 1, time: now }));
-            }
-        } else {
-            sessionStorage.setItem(RELOAD_KEY, JSON.stringify({ count: 1, time: now }));
-        }
-
-        /**
-         * 标记跨标签页冲突并显示 Banner
-         */
-        const flagAuthConflict = () => {
-            if (!mounted) return;
-            console.warn('⚠️ 检测到跨标签页身份认证冲突，显示提示 Banner');
-            setAuthConflict(true);
-            setLoading(false);
-        };
-
         const initAuth = async () => {
-            if (isDeadlocked) return;
-
-            // NOTE: 超时后只结束 loading spinner，不中断 authTask。
-            // authTask 会继续在后台完成 user/profile 的加载。
-            const loadingTimeout = setTimeout(() => {
-                if (mounted) {
-                    console.warn('initAuth 加载超时，先结束 loading spinner');
-                    setLoading(false);
-                }
-            }, 4000);
-
             try {
                 const session = await authService.getSession();
                 if (session?.user && mounted) {
-                    // 检查本 Tab 之前绑定的 userId 是否被篡改
-                    const previousTabUserId = sessionStorage.getItem(TAB_USER_KEY);
-                    if (previousTabUserId && previousTabUserId !== session.user.id) {
-                        flagAuthConflict();
-                        return;
-                    }
-
-                    authCurrentUserId = session.user.id;
-                    sessionStorage.setItem(TAB_USER_KEY, session.user.id);
                     setUser(session.user);
-                    registerTab(session.user.id);
                     await loadProfile(session.user.id);
-
-                    if (checkRegistryConflict()) {
-                        flagAuthConflict();
-                    }
                 }
             } catch (err) {
                 console.error('初始化认证失败:', err);
             } finally {
-                clearTimeout(loadingTimeout);
-                if (mounted) setLoading(false);
+                if (mounted) {
+                    setLoading(false);
+                }
             }
         };
 
         initAuth();
 
-        if (isDeadlocked) {
-            return;
-        }
-
-        // NOTE: 定时轮询注册表 + 心跳更新（每 3 秒）
-        // 这是最可靠的检测层：即使 storage 事件漏掉、延迟死锁逐渐产生，也能捕获
-        const pollIntervalId = setInterval(() => {
-            if (!mounted || !authCurrentUserId) return;
-            // 心跳更新本标签页的注册信息
-            registerTab(authCurrentUserId);
-            // 检查是否有冲突
-            if (checkRegistryConflict()) {
-                flagAuthConflict();
-            }
-        }, 3000);
-
-        // 监听 localStorage 变更（即时响应层）
-        const handleStorageChange = (e: StorageEvent) => {
-            // 注册表变更 → 立即检查冲突
-            if (e.key === TAB_REGISTRY_KEY && authCurrentUserId) {
-                if (checkRegistryConflict()) {
-                    flagAuthConflict();
-                }
-                return;
-            }
-
-            // Supabase auth token 变更
-            const isSupabaseAuthKey = e.key && (
-                (e.key.startsWith('sb-') && e.key.endsWith('-auth-token')) ||
-                e.key.includes('supabase.auth.token')
-            );
-            if (!isSupabaseAuthKey) return;
-
-            if (!e.newValue && authCurrentUserId) {
-                flagAuthConflict();
-                return;
-            }
-            if (e.newValue && authCurrentUserId) {
-                try {
-                    const parsed = JSON.parse(e.newValue);
-                    const newUserId = parsed?.user?.id;
-                    if (newUserId && newUserId !== authCurrentUserId) {
-                        flagAuthConflict();
-                    }
-                } catch (_e) { }
-            }
-        };
-        window.addEventListener('storage', handleStorageChange);
-
-        // 页面切回可见时立即检查
-        const handleVisibilityChange = () => {
-            if (document.visibilityState !== 'visible' || !authCurrentUserId) return;
-            registerTab(authCurrentUserId);
-            if (checkRegistryConflict()) {
-                flagAuthConflict();
-            }
-        };
-        document.addEventListener('visibilitychange', handleVisibilityChange);
-
-        // 页面关闭时注销本标签页
-        window.addEventListener('beforeunload', unregisterTab);
-
-        // 监听认证事件（登录/退出/Token 刷新等）
+        // =============================================
+        // 监听 Supabase 认证事件
+        // =============================================
+        // NOTE: 核心规则——回调中 **绝不 await 任何 Supabase API 调用**
+        // 因为回调是在 Supabase lock 内执行的（_notifyAllSubscribers 会 await 回调）
+        // 如果在回调中调用需要 lock 的 API → 死锁
         const { data: { subscription } } = authService.onAuthStateChange(
-            async (event: string, session: Session | null) => {
+            (event: string, session: Session | null) => {
                 if (!mounted) return;
 
                 if (event === 'SIGNED_IN' && session?.user) {
-                    if (authCurrentUserId && authCurrentUserId !== session.user.id) {
-                        flagAuthConflict();
-                        return;
-                    }
-
-                    sessionStorage.setItem(RELOAD_KEY, JSON.stringify({ count: 0, time: 0 }));
-                    authCurrentUserId = session.user.id;
-                    sessionStorage.setItem(TAB_USER_KEY, session.user.id);
-                    // 登录成功后注册到标签页注册表
-                    registerTab(session.user.id);
                     setUser(session.user);
-                    await loadProfile(session.user.id, session.user.user_metadata?.name);
-
-                    // 登录后立即检查是否与其他标签页冲突
-                    if (checkRegistryConflict()) {
-                        flagAuthConflict();
-                    }
+                    // NOTE: loadProfile 放到 setTimeout(0) 中，
+                    // 让当前 notifyAllSubscribers 先完成并释放 lock，
+                    // 之后 loadProfile 的 Supabase 查询才能正常获取 lock
+                    setTimeout(() => {
+                        if (!mounted) return;
+                        loadProfile(session.user.id, session.user.user_metadata?.name);
+                    }, 0);
                 } else if (event === 'SIGNED_OUT') {
-                    // NOTE: 只有「非主动退出」时才判定为跨标签页冲突
-                    // isSigningOutRef 在 signOut() 中被设为 true，表示是用户主动退出
-                    if (authCurrentUserId && !isSigningOutRef.current) {
-                        flagAuthConflict();
-                        return;
+                    if (isSigningOutRef.current) {
+                        // 用户主动退出 → 清空
+                        isSigningOutRef.current = false;
+                        setUser(null);
+                        setProfile(null);
                     }
-                    isSigningOutRef.current = false;
-                    authCurrentUserId = null;
-                    sessionStorage.removeItem(TAB_USER_KEY);
-                    unregisterTab();
-                    setUser(null);
-                    setProfile(null);
+                    // NOTE: 非主动 SIGNED_OUT → 完全忽略。
+                    // 原因：Supabase visibilitychange 恢复失败可能触发假事件
+                    // 且此时 session 已被从 localStorage 删除，
+                    // 调 getSession 验证必然为 null → 误清状态。
+                    // 不做任何操作，保持现有 user/profile 状态。
                 } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-                    if (authCurrentUserId && session.user.id !== authCurrentUserId) {
-                        flagAuthConflict();
-                        return;
-                    }
+                    // NOTE: token 刷新成功（visibilitychange 恢复时的常见事件）
+                    // 只更新 user 对象（新 token），不做任何异步操作
                     setUser(session.user);
-                    loadProfile(session.user.id).catch(e => console.warn('TOKEN_REFRESHED loadProfile failed:', e));
+                    // NOTE: 静默刷新 profile —— 同样推迟到 lock 释放后
+                    setTimeout(() => {
+                        if (!mounted) return;
+                        loadProfile(session.user.id).catch(() => { });
+                    }, 0);
+                } else if (event === 'INITIAL_SESSION' && session?.user) {
+                    // NOTE: Supabase v2 初始化完成信号
+                    setUser(session.user);
                 }
             }
         );
 
         return () => {
             mounted = false;
-            clearInterval(pollIntervalId);
-            window.removeEventListener('storage', handleStorageChange);
-            document.removeEventListener('visibilitychange', handleVisibilityChange);
-            window.removeEventListener('beforeunload', unregisterTab);
             subscription.unsubscribe();
         };
     }, [loadProfile]);
@@ -327,7 +172,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { user: signedInUser } = await authService.signIn(email, password);
         if (signedInUser) {
             setUser(signedInUser);
-            // NOTE: loadProfile 加保护，防止出错时 signIn 整体抛异常导致界面崩溃
             try {
                 await Promise.race([
                     loadProfile(signedInUser.id),
@@ -368,7 +212,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 try {
                     await tryJoin();
                 } catch (e) {
-                    // 首次失败后等待并重试一次
                     console.warn('邀请码首次加入失败，500ms 后重试:', e);
                     await new Promise(resolve => setTimeout(resolve, 500));
                     try {
@@ -383,12 +226,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
+    /**
+     * 退出登录
+     * NOTE: 添加 3 秒超时保护，即使 Supabase 请求 hang 住也能强制清理本地状态。
+     */
     const signOut = async () => {
-        // 标记为主动退出，防止 SIGNED_OUT 事件处理器误判为冲突
         isSigningOutRef.current = true;
-        await authService.signOut();
-        setUser(null);
-        setProfile(null);
+
+        const forceCleanup = () => {
+            setUser(null);
+            setProfile(null);
+        };
+
+        try {
+            await Promise.race([
+                authService.signOut(),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('signOut timeout')), 3000))
+            ]);
+        } catch (err) {
+            console.warn('signOut 超时或失败，强制清理本地状态:', err);
+        } finally {
+            forceCleanup();
+        }
     };
 
     return (
@@ -398,7 +257,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 profile,
                 loading,
                 emailConfirmed: !!user?.email_confirmed_at,
-                authConflict,
                 signIn,
                 signUp,
                 signOut,

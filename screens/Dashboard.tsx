@@ -6,6 +6,7 @@ import { Profile } from '../lib/api';
 import { EXPERT_TIPS_DATA } from '../data/expert-tips';
 import { MARQUEE_TEMPLATES } from '../data/marquee-messages';
 
+
 interface DashboardProps {
   onNavigate: (tab: Tab) => void;
   profile: Profile | null;
@@ -252,7 +253,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate, profile, userId, t, i
 
   const [toast, setToast] = useState<{ msg: string, phase: 'in' | 'out' | null }>({ msg: '', phase: null });
 
-  // 1. 响应激活状态：静默同步数据
+  // 响应激活状态：静默同步数据
   useEffect(() => {
     if (isActive) {
       refreshLogs();

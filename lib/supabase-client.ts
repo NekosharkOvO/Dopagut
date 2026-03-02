@@ -13,6 +13,9 @@ if (!supabaseUrl || !supabaseAnonKey) {
     );
 }
 
+// NOTE: 使用默认配置（autoRefreshToken: true, persistSession: true）。
+// Supabase 会在 visibilitychange 时自动执行 _recoverAndRefresh，
+// 但 auth-context 会忽略其产生的假 SIGNED_OUT 事件。
 export const supabase = createClient(
     supabaseUrl || '',
     supabaseAnonKey || ''

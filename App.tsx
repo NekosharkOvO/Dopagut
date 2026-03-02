@@ -65,7 +65,7 @@ const AppContent: React.FC = () => {
   }
 
   /**
-   * 采用“全部挂载 + CSS 隐藏”的持久化方案，解决切页重新加载问题
+   * 采用"全部挂载 + CSS 隐藏"的持久化方案，解决切页重新加载问题
    */
   const ALL_TABS = [Tab.Daily, Tab.Tracker, Tab.Profile, Tab.Achievements, Tab.Map];
 
@@ -89,6 +89,30 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="max-w-md mx-auto h-[100dvh] bg-dopa-white flex flex-col relative overflow-hidden shadow-2xl">
+      {/* NOTE: Profile 加载失败提示 —— 认证成功但资料未加载时提示用户 */}
+      {user && !profile && !loading && (
+        <div className="bg-dopa-yellow text-black text-xs font-bold px-4 py-3 flex items-center justify-between z-[65] shadow-md">
+          <div className="flex items-center gap-2 flex-1">
+            <span className="text-base">😵</span>
+            <span>资料加载失败，请尝试刷新</span>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => window.location.reload()}
+              className="bg-black text-dopa-yellow px-3 py-1 rounded-full text-xs font-black uppercase active:scale-95 transition-transform"
+            >
+              重试
+            </button>
+            <button
+              onClick={handleLogout}
+              className="bg-white text-black px-3 py-1 rounded-full text-xs font-black uppercase active:scale-95 transition-transform"
+            >
+              退出
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 邮箱验证提示 */}
       {!emailConfirmed && (
         <div className="bg-dopa-pink text-white text-[10px] font-bold px-4 py-2 flex items-center justify-between z-[60] shadow-md animate-in slide-in-from-top duration-300">
