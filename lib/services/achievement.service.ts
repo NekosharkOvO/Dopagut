@@ -77,5 +77,27 @@ export const achievementService = {
 
         if (upsertErr) throw upsertErr;
         return isUnlocking;
+    },
+
+    /**
+     * 直接写入进度（供优化后的引擎使用，跳过重复查询）
+     * NOTE: 引擎已预加载定义和用户进度，这里只做 upsert
+     */
+    async upsertProgress(
+        userId: string,
+        achievementId: string,
+        newProgress: number,
+        isUnlocking: boolean,
+        existingUnlockedAt: string | null | undefined,
+    ): Promise<void> {
+        const { error } = await supabase
+            .from('achievements')
+            .upsert({
+                user_id: userId,
+                achievement_type: achievementId,
+                current_progress: newProgress,
+                unlocked_at: isUnlocking ? new Date().toISOString() : (existingUnlockedAt || null)
+            }, { onConflict: 'user_id,achievement_type' });
+        if (error) throw error;
     }
 };

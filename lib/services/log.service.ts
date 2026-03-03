@@ -78,26 +78,28 @@ export const logService = {
         return (data || []).map(logService.dbLogToLog);
     },
 
-    async getDailyMVP(userId: string): Promise<Log | null> {
+    /**
+     * 从已加载的日志中计算今日 MVP（纯内存，无 DB 查询）
+     */
+    getDailyMVPFromLogs(logs: Log[]): Log | null {
         const startOfToday = new Date();
         startOfToday.setHours(0, 0, 0, 0);
+        const todayLogs = logs.filter(l => new Date(l.date) >= startOfToday);
+        if (todayLogs.length === 0) return null;
 
-        const { data, error } = await supabase
-            .from('logs')
-            .select('*')
-            .eq('user_id', userId)
-            .gte('date', startOfToday.toISOString())
-            .order('bristol_type', { ascending: true })
-            .limit(20);
+        // 优先选 bristol_type === 4 的完美型
+        const perfect = todayLogs.find(l => l.bristolType === 4);
+        if (perfect) return perfect;
 
-        if (error) throw error;
-        if (!data || data.length === 0) return null;
-
-        const perfect = data.find((l: DbLog) => l.bristol_type === 4);
-        return logService.dbLogToLog(perfect || data[0]);
+        // 否则选 bristol_type 最接近 4 的
+        return todayLogs.sort((a, b) => Math.abs(a.bristolType - 4) - Math.abs(b.bristolType - 4))[0];
     },
 
-    async getWeeklyStats(userId: string): Promise<{ score: number; label: string }[]> {
+    /**
+     * 从已加载的日志中计算周报统计（纯内存，无 DB 查询）
+     * NOTE: 原实现用 for 循环串行查 7 次 DB，现在一次内存过滤
+     */
+    getWeeklyStatsFromLogs(logs: Log[]): { score: number; label: string }[] {
         const stats: { score: number; label: string }[] = [];
         const now = new Date();
         const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
@@ -110,19 +112,18 @@ export const logService = {
             const nextDay = new Date(day);
             nextDay.setDate(day.getDate() + 1);
 
-            const { data } = await supabase
-                .from('logs')
-                .select('bristol_type, mood, speed')
-                .eq('user_id', userId)
-                .gte('date', day.toISOString())
-                .lt('date', nextDay.toISOString());
-
             const label = dayNames[day.getDay()];
 
-            if (data && data.length > 0) {
-                const dayScores = data.map((log: any) => {
+            // NOTE: 内存过滤取代 DB 查询
+            const dayLogs = logs.filter(l => {
+                const d = new Date(l.date);
+                return d >= day && d < nextDay;
+            });
+
+            if (dayLogs.length > 0) {
+                const dayScores = dayLogs.map(log => {
                     let s = 0;
-                    const b = log.bristol_type;
+                    const b = log.bristolType;
                     if (b === 4) s += 60;
                     else if (b === 3 || b === 5) s += 45;
                     else if (b === 2 || b === 6) s += 25;
@@ -141,8 +142,8 @@ export const logService = {
                     return s;
                 });
 
-                const avgScore = dayScores.reduce((a: number, b: number) => a + b, 0) / dayScores.length;
-                const finalScore = Math.min(100, Math.round(avgScore + (data.length - 1) * 5));
+                const avgScore = dayScores.reduce((a, b) => a + b, 0) / dayScores.length;
+                const finalScore = Math.min(100, Math.round(avgScore + (dayLogs.length - 1) * 5));
                 stats.push({ score: finalScore, label });
             } else {
                 stats.push({ score: 0, label });
@@ -151,17 +152,13 @@ export const logService = {
         return stats;
     },
 
-    async getAverageTime(userId: string): Promise<string> {
-        const { data, error } = await supabase
-            .from('logs')
-            .select('duration_seconds')
-            .eq('user_id', userId);
-        if (error) throw error;
-
-        if (!data || data.length === 0) return '0m 0s';
-
-        const total = data.reduce((acc: number, log: any) => acc + log.duration_seconds, 0);
-        const avg = Math.floor(total / data.length);
+    /**
+     * 从已加载的日志中计算平均时间（纯内存，无 DB 查询）
+     */
+    getAverageTimeFromLogs(logs: Log[]): string {
+        if (logs.length === 0) return '0m 0s';
+        const total = logs.reduce((acc, log) => acc + log.durationSeconds, 0);
+        const avg = Math.floor(total / logs.length);
         const m = Math.floor(avg / 60);
         const s = avg % 60;
         return `${m}m ${s}s`;

@@ -68,6 +68,12 @@ export default function Tracker({ state, setState, userId, onRefreshProfile, t, 
    const [toast, setToast] = useState<{ msg: string, phase: 'in' | 'out' | null }>({ msg: '', phase: null });
    const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+   // NOTE: modal 抽屉动画状态
+   // modalMounted: DOM 是否挂载
+   // modalOpen: 控制 CSS transition 的目标状态
+   const [modalMounted, setModalMounted] = useState(false);
+   const [modalOpen, setModalOpen] = useState(false);
+
    const showToast = (msg: string) => {
       setToast({ msg, phase: 'in' });
       setTimeout(() => {
@@ -117,6 +123,11 @@ export default function Tracker({ state, setState, userId, onRefreshProfile, t, 
             endTime: end,
             showModal: true,
          });
+         // NOTE: 先挂载 DOM，下一帧触发滑入动画
+         setModalMounted(true);
+         requestAnimationFrame(() => {
+            requestAnimationFrame(() => setModalOpen(true));
+         });
       } else {
          setState({
             ...state,
@@ -125,6 +136,8 @@ export default function Tracker({ state, setState, userId, onRefreshProfile, t, 
             endTime: null,
             showModal: false,
          });
+         setModalOpen(false);
+         setModalMounted(false);
       }
    };
 
@@ -162,7 +175,12 @@ export default function Tracker({ state, setState, userId, onRefreshProfile, t, 
          await onRefreshProfile();
 
          showToast(t.alerts.saveSuccess || '记录成功！✨');
-         setState(INITIAL_TRACKER_STATE);
+         // NOTE: 先播放滑出动画，再重置状态
+         setModalOpen(false);
+         setTimeout(() => {
+            setModalMounted(false);
+            setState(INITIAL_TRACKER_STATE);
+         }, 300);
       } catch (err) {
          console.error('保存记录失败:', err);
          alert('保存失败，请重试');
@@ -277,7 +295,13 @@ export default function Tracker({ state, setState, userId, onRefreshProfile, t, 
                </div>
 
                {!state.isRunning && state.endTime && !state.showModal && (
-                  <button onClick={() => setState({ ...state, showModal: true })} className="mt-8 bg-black text-white px-6 py-3 rounded-xl font-black border-4 border-transparent hover:border-dopa-lime transition-all flex items-center gap-2 animate-bounce z-20">
+                  <button onClick={() => {
+                     setState({ ...state, showModal: true });
+                     setModalMounted(true);
+                     requestAnimationFrame(() => {
+                        requestAnimationFrame(() => setModalOpen(true));
+                     });
+                  }} className="mt-8 bg-black text-white px-6 py-3 rounded-xl font-black border-4 border-transparent hover:border-dopa-lime transition-all flex items-center gap-2 animate-bounce z-20">
                      <span className="material-icons-round">edit</span>
                      {t.tracker.resume}
                   </button>
@@ -323,14 +347,45 @@ export default function Tracker({ state, setState, userId, onRefreshProfile, t, 
          </div>
 
          {/* Save Modal */}
-         {state.showModal && (
-            <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-               <div className="bg-white w-full sm:w-[95%] max-w-md h-[90%] sm:h-auto sm:max-h-[90%] rounded-t-[2rem] sm:rounded-[2rem] border-t-4 sm:border-4 border-black shadow-neo-white flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-300">
+         {/* Save Modal — 抽屉式滑入/滑出动画 */}
+         {modalMounted && (
+            <div
+               className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4"
+               style={{
+                  backgroundColor: modalOpen ? 'rgba(0,0,0,0.8)' : 'rgba(0,0,0,0)',
+                  backdropFilter: modalOpen ? 'blur(4px)' : 'blur(0px)',
+                  transition: 'background-color 0.35s ease, backdrop-filter 0.35s ease',
+                  pointerEvents: modalOpen ? 'auto' : 'none',
+               }}
+               onClick={() => {
+                  // NOTE: 点击遮罩关闭
+                  setModalOpen(false);
+                  setTimeout(() => {
+                     setModalMounted(false);
+                     setState({ ...state, showModal: false });
+                  }, 350);
+               }}
+            >
+               <div
+                  className="bg-white w-full sm:w-[95%] max-w-md h-[90%] sm:h-auto sm:max-h-[90%] rounded-t-[2rem] sm:rounded-[2rem] border-t-4 sm:border-4 border-black shadow-neo-white flex flex-col overflow-hidden"
+                  style={{
+                     transform: modalOpen ? 'translateY(0)' : 'translateY(100%)',
+                     opacity: modalOpen ? 1 : 0,
+                     transition: 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.2s ease',
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+               >
 
                   {/* Modal Header */}
                   <header className="bg-dopa-yellow border-b-4 border-black p-4 flex justify-between items-center shrink-0">
                      <h2 className="text-2xl font-black uppercase italic transform -rotate-1">{t.tracker.modalTitle}</h2>
-                     <button onClick={() => setState({ ...state, showModal: false })} className="w-10 h-10 bg-dopa-pink rounded-full border-2 border-black flex items-center justify-center shadow-neo-sm hover:translate-y-0.5 hover:shadow-none transition-all">
+                     <button onClick={() => {
+                        setModalOpen(false);
+                        setTimeout(() => {
+                           setModalMounted(false);
+                           setState({ ...state, showModal: false });
+                        }, 350);
+                     }} className="w-10 h-10 bg-dopa-pink rounded-full border-2 border-black flex items-center justify-center shadow-neo-sm hover:translate-y-0.5 hover:shadow-none transition-all">
                         <span className="material-icons-round text-white font-bold">close</span>
                      </button>
                   </header>
@@ -455,7 +510,14 @@ export default function Tracker({ state, setState, userId, onRefreshProfile, t, 
 
                   {/* Actions */}
                   <div className="p-4 border-t-4 border-black bg-gray-50 flex gap-3 shrink-0 pb-8 sm:pb-4">
-                     <button onClick={handleReset} className="flex-1 py-3 rounded-xl font-black border-4 border-black bg-white text-black shadow-neo hover:shadow-none hover:translate-y-0.5 transition-all uppercase">
+                     <button onClick={() => {
+                        // NOTE: 丢弃按钮也走滑出动画
+                        setModalOpen(false);
+                        setTimeout(() => {
+                           setModalMounted(false);
+                           handleReset();
+                        }, 300);
+                     }} className="flex-1 py-3 rounded-xl font-black border-4 border-black bg-white text-black shadow-neo hover:shadow-none hover:translate-y-0.5 transition-all uppercase">
                         {t.tracker.discardAction}
                      </button>
                      <button

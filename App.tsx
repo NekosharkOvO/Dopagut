@@ -27,13 +27,30 @@ const AppContent: React.FC = () => {
   const [lang, setLang] = useState<'zh' | 'en'>('zh');
   const t = lang === 'zh' ? zh : en;
 
+  // NOTE: 监听全局 navigate-tab 事件（由 AchievementToast 点击触发）
+  useEffect(() => {
+    const handleNavigateTab = (e: any) => {
+      const tabMap: Record<string, Tab> = {
+        daily: Tab.Daily,
+        tracker: Tab.Tracker,
+        profile: Tab.Profile,
+        achievements: Tab.Achievements,
+        map: Tab.Map,
+      };
+      const tab = tabMap[e.detail?.tab];
+      if (tab) setActiveTab(tab);
+    };
+    window.addEventListener('navigate-tab', handleNavigateTab);
+    return () => window.removeEventListener('navigate-tab', handleNavigateTab);
+  }, []);
+
   const handleLogin = async (email: string, password: string) => {
     await signIn(email, password);
     setActiveTab(Tab.Tracker);
   };
 
-  const handleRegister = async (email: string, password: string, name: string, inviteCode?: string, location?: string, geo?: { lat: number; lng: number }) => {
-    await signUp(email, password, name, inviteCode, location, geo);
+  const handleRegister = async (email: string, password: string, name: string, otpCode: string, inviteCode?: string, location?: string, geo?: { lat: number; lng: number }) => {
+    await signUp(email, password, name, otpCode, inviteCode, location, geo);
     setActiveTab(Tab.Tracker);
   };
 

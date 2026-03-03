@@ -47,17 +47,14 @@ export function useLogs(userId: string | undefined) {
 
         try {
             setLoading(true);
-            const [logsData, mvp, weekly, avgTime] = await Promise.all([
-                logService.getLogs(userId),
-                logService.getDailyMVP(userId),
-                logService.getWeeklyStats(userId),
-                logService.getAverageTime(userId),
-            ]);
+            // NOTE: 优化前是 4 个并行 DB 查询（其中 getWeeklyStats 内有 7 次串行查询 = 10 次 DB）
+            // 优化后只查一次 DB，其余全部内存计算
+            const logsData = await logService.getLogs(userId);
 
             setLogs(logsData);
-            setDailyMVP(mvp);
-            setWeeklyStats(weekly);
-            setAverageTime(avgTime);
+            setDailyMVP(logService.getDailyMVPFromLogs(logsData));
+            setWeeklyStats(logService.getWeeklyStatsFromLogs(logsData));
+            setAverageTime(logService.getAverageTimeFromLogs(logsData));
         } catch (err) {
             // NOTE: AbortError 是正常的取消行为，不需要报错
             if (err instanceof DOMException && err.name === 'AbortError') return;
