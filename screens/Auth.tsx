@@ -1,12 +1,12 @@
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import LocationPicker from '../components/LocationPicker';
 import { authService } from '../lib/api';
 import { Country, State } from 'country-state-city';
 
 interface AuthProps {
     onLogin: (email: string, password: string) => Promise<void>;
-    onRegister: (email: string, password: string, name: string, inviteCode?: string, location?: string, geo?: { lat: number; lng: number }) => Promise<void>;
+    onRegister: (email: string, password: string, name: string, otpCode: string, inviteCode?: string, location?: string, geo?: { lat: number; lng: number }) => Promise<void>;
     lang: 'zh' | 'en';
     setLang: (lang: 'zh' | 'en') => void;
     t: any;
@@ -22,6 +22,16 @@ export default function Auth({ onLogin, onRegister, lang, setLang, t }: AuthProp
     const [password, setPassword] = useState('');
     const [name, setName] = useState('');
 
+    // OTP 验证码状态
+    const [otpCode, setOtpCode] = useState('');
+    const [otpSent, setOtpSent] = useState(false);
+    const [otpSending, setOtpSending] = useState(false);
+    const [cooldown, setCooldown] = useState(0);
+    const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    // OTP toast 状态
+    const [otpToast, setOtpToast] = useState<{ msg: string; visible: boolean }>({ msg: '', visible: false });
+
     // 邀请码状态
     const [inviteCode, setInviteCode] = useState('');
     const [inviteStatus, setInviteStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
@@ -30,6 +40,50 @@ export default function Auth({ onLogin, onRegister, lang, setLang, t }: AuthProp
     const [regLocation, setRegLocation] = useState('');
     const [geoCoords, setGeoCoords] = useState<{ lat: number; lng: number } | null>(null);
     const [locating, setLocating] = useState(false);
+
+    // 清理冷却定时器
+    useEffect(() => {
+        return () => { if (cooldownRef.current) clearInterval(cooldownRef.current); };
+    }, []);
+
+    /**
+     * 发送 OTP 验证码（调用 signUp 触发邮件）
+     * NOTE: Supabase 的 signUp 在 "Confirm email" 开启时会自动发送验证邮件
+     */
+    const handleSendOtp = async () => {
+        if (!email || !password || !name) {
+            setError(lang === 'zh' ? '请先填写用户名、邮箱和密码' : 'Please fill in username, email and password first');
+            return;
+        }
+        if (cooldown > 0) return;
+
+        setOtpSending(true);
+        setError(null);
+        try {
+            await authService.signUp(email, password, name);
+            setOtpSent(true);
+
+            // 显示 toast 提示
+            setOtpToast({ msg: t.auth.otpSent, visible: true });
+            setTimeout(() => setOtpToast(prev => ({ ...prev, visible: false })), 5000);
+
+            // 启动 30 秒冷却
+            setCooldown(30);
+            cooldownRef.current = setInterval(() => {
+                setCooldown(prev => {
+                    if (prev <= 1) {
+                        if (cooldownRef.current) clearInterval(cooldownRef.current);
+                        return 0;
+                    }
+                    return prev - 1;
+                });
+            }, 1000);
+        } catch (err: any) {
+            setError(err?.message || 'Failed to send verification code');
+        } finally {
+            setOtpSending(false);
+        }
+    };
 
     /**
      * 处理登录
@@ -48,10 +102,14 @@ export default function Auth({ onLogin, onRegister, lang, setLang, t }: AuthProp
     };
 
     /**
-     * 处理注册
+     * 处理注册（验证 OTP 后写入 profile 数据）
      */
     const handleRegister = async () => {
         if (!email || !password || !name) return;
+        if (!otpCode) {
+            setError(lang === 'zh' ? '请输入验证码' : 'Please enter verification code');
+            return;
+        }
         // 如果填了邀请码但验证失败，阻止注册
         if (inviteCode && inviteStatus !== 'valid') {
             setError(t.auth.invalidInviteCode || '邀请码无效，请检查后重试');
@@ -64,6 +122,7 @@ export default function Auth({ onLogin, onRegister, lang, setLang, t }: AuthProp
                 email,
                 password,
                 name,
+                otpCode,
                 inviteCode || undefined,
                 regLocation || undefined,
                 geoCoords || undefined
@@ -77,7 +136,6 @@ export default function Auth({ onLogin, onRegister, lang, setLang, t }: AuthProp
 
     /**
      * 异步验证邀请码（防抖处理）
-     * 用户输入后自动触发查询，实时给出视觉反馈
      */
     const handleInviteCodeChange = useCallback(async (code: string) => {
         setInviteCode(code);
@@ -96,7 +154,6 @@ export default function Auth({ onLogin, onRegister, lang, setLang, t }: AuthProp
 
     /**
      * GPS 一键定位
-     * 通过浏览器 Geolocation API 获取经纬度，再反向解析到城市级别
      */
     const handleGeoLocate = async () => {
         if (!navigator.geolocation) return;
@@ -118,7 +175,6 @@ export default function Auth({ onLogin, onRegister, lang, setLang, t }: AuthProp
                 if (countryCode) {
                     const country = Country.getCountryByCode(countryCode);
                     if (country) {
-                        // 尝试在 country-state-city 库中精确匹配省/州
                         const countryStates = State.getStatesOfCountry(countryCode);
                         const matchedState = countryStates.find(s =>
                             s.name.toLowerCase() === stateName.toLowerCase() ||
@@ -166,22 +222,42 @@ export default function Auth({ onLogin, onRegister, lang, setLang, t }: AuthProp
                 {lang === 'zh' ? 'EN' : '中文'}
             </button>
 
-            {/* Main Card：恢复 rounded 圆角必须的 overflow-hidden，但内部 LocationPicker 改用 Portal/fixed 解决截断 */}
+            {/* OTP Toast — 与内部 toast 统一样式 */}
+            {otpToast.visible && (
+                <div
+                    className="fixed top-20 left-1/2 -translate-x-1/2 z-[200] bg-white border-4 border-black px-6 py-3 rounded-2xl shadow-neo flex items-center gap-3 pointer-events-none whitespace-nowrap min-w-max animate-in fade-in slide-in-from-top-4 duration-300"
+                >
+                    <span className="material-icons-round text-dopa-cyan">mail</span>
+                    <span className="font-black text-sm text-black">{otpToast.msg}</span>
+                </div>
+            )}
+
+            {/* Main Card */}
             <div className="w-full max-w-sm bg-white border-4 border-black rounded-[2.5rem] shadow-neo-lg overflow-hidden relative z-10 transition-all duration-300">
 
-                {/* Header */}
-                <div className="bg-dopa-yellow border-b-4 border-black p-8 text-center relative overflow-hidden">
-                    <div className="absolute top-2 left-2 animate-[spin_10s_linear_infinite]">
-                        <span className="material-icons-round text-4xl opacity-20">settings</span>
-                    </div>
-                    <div className="relative z-10">
-                        <div className="w-24 h-24 mx-auto bg-dopa-white rounded-full border-4 border-black shadow-neo flex items-center justify-center mb-4 transform -rotate-3 hover:rotate-3 transition-transform">
-                            <span className="text-5xl">👑</span>
+                {/* Header — 注册页压缩高度，登录/首页保持原样 */}
+                {view === 'register' ? (
+                    <div className="bg-dopa-yellow border-b-4 border-black px-6 py-3 flex items-center gap-3">
+                        <span className="text-3xl">👑</span>
+                        <div>
+                            <h1 className="font-display text-2xl font-black text-black tracking-tighter uppercase">DopaGut</h1>
+                            <p className="font-bold text-[10px] uppercase tracking-widest bg-black text-white inline-block px-1.5 py-0.5">{t.auth.subSlogan}</p>
                         </div>
-                        <h1 className="font-display text-4xl font-black text-black tracking-tighter uppercase drop-shadow-sm">DopaGut</h1>
-                        <p className="font-bold text-xs uppercase tracking-widest mt-2 bg-black text-white inline-block px-2 py-1 transform rotate-2">{t.auth.subSlogan}</p>
                     </div>
-                </div>
+                ) : (
+                    <div className="bg-dopa-yellow border-b-4 border-black p-8 text-center relative overflow-hidden">
+                        <div className="absolute top-2 left-2 animate-[spin_10s_linear_infinite]">
+                            <span className="material-icons-round text-4xl opacity-20">settings</span>
+                        </div>
+                        <div className="relative z-10">
+                            <div className="w-24 h-24 mx-auto bg-dopa-white rounded-full border-4 border-black shadow-neo flex items-center justify-center mb-4 transform -rotate-3 hover:rotate-3 transition-transform">
+                                <span className="text-5xl">👑</span>
+                            </div>
+                            <h1 className="font-display text-4xl font-black text-black tracking-tighter uppercase drop-shadow-sm">DopaGut</h1>
+                            <p className="font-bold text-xs uppercase tracking-widest mt-2 bg-black text-white inline-block px-2 py-1 transform rotate-2">{t.auth.subSlogan}</p>
+                        </div>
+                    </div>
+                )}
 
                 {/* Content */}
                 <div className="p-6 bg-white min-h-[300px] flex flex-col justify-center">
@@ -258,56 +334,92 @@ export default function Auth({ onLogin, onRegister, lang, setLang, t }: AuthProp
 
                     {/* REGISTER */}
                     {view === 'register' && (
-                        <div className="flex flex-col gap-3 animate-in fade-in slide-in-from-right-8 duration-300">
+                        <div className="flex flex-col gap-2 animate-in fade-in slide-in-from-right-8 duration-300">
                             <div className="flex items-center gap-2 mb-1">
                                 <button onClick={() => { setView('landing'); setError(null); }} className="w-8 h-8 flex items-center justify-center border-2 border-black rounded bg-gray-100 hover:bg-gray-200"><span className="material-icons-round text-sm font-bold">arrow_back</span></button>
                                 <h2 className="text-2xl font-black italic">{t.auth.newComer}</h2>
                             </div>
 
-                            <div className="space-y-3">
+                            {/* ===== 必填区域 ===== */}
+                            <p className="text-xs font-black text-gray-500 uppercase tracking-wider mt-1">{t.auth.requiredSection}</p>
+
+                            <div className="space-y-2">
                                 {/* 昵称 */}
                                 <div className="relative group">
-                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-2xl">😎</span>
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xl">😎</span>
                                     <input
                                         type="text"
                                         value={name}
                                         onChange={e => setName(e.target.value)}
                                         placeholder={t.auth.namePlaceholder}
-                                        className="w-full bg-gray-50 border-4 border-black rounded-xl py-3 pl-12 pr-4 font-bold outline-none focus:bg-dopa-pink/20 transition-colors"
+                                        className="w-full bg-gray-50 border-4 border-black rounded-xl py-2.5 pl-11 pr-4 font-bold outline-none focus:bg-dopa-pink/20 transition-colors text-sm"
                                     />
                                 </div>
                                 {/* 邮箱 */}
                                 <div className="relative group">
-                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-2xl">📧</span>
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xl">📧</span>
                                     <input
                                         type="email"
                                         value={email}
                                         onChange={e => setEmail(e.target.value)}
                                         placeholder={t.auth.emailPlaceholder}
-                                        className="w-full bg-gray-50 border-4 border-black rounded-xl py-3 pl-12 pr-4 font-bold outline-none focus:bg-dopa-pink/20 transition-colors"
+                                        className="w-full bg-gray-50 border-4 border-black rounded-xl py-2.5 pl-11 pr-4 font-bold outline-none focus:bg-dopa-pink/20 transition-colors text-sm"
                                     />
                                 </div>
                                 {/* 密码 */}
                                 <div className="relative group">
-                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-2xl">🔒</span>
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xl">🔒</span>
                                     <input
                                         type="password"
                                         value={password}
                                         onChange={e => setPassword(e.target.value)}
                                         placeholder={t.auth.passwordPlaceholder}
-                                        className="w-full bg-gray-50 border-4 border-black rounded-xl py-3 pl-12 pr-4 font-bold outline-none focus:bg-dopa-pink/20 transition-colors"
+                                        className="w-full bg-gray-50 border-4 border-black rounded-xl py-2.5 pl-11 pr-4 font-bold outline-none focus:bg-dopa-pink/20 transition-colors text-sm"
                                     />
                                 </div>
+                                {/* 验证码行：左侧输入框 + 右侧发送按钮 */}
+                                <div className="flex gap-2">
+                                    <div className="relative group flex-1">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xl">🔢</span>
+                                        <input
+                                            type="text"
+                                            value={otpCode}
+                                            onChange={e => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                            placeholder={t.auth.otpPlaceholder}
+                                            maxLength={6}
+                                            className="w-full bg-gray-50 border-4 border-black rounded-xl py-2.5 pl-11 pr-4 font-bold outline-none focus:bg-dopa-pink/20 transition-colors text-sm tracking-[0.3em]"
+                                        />
+                                    </div>
+                                    <button
+                                        onClick={handleSendOtp}
+                                        disabled={otpSending || cooldown > 0 || !email || !password || !name}
+                                        className={`shrink-0 px-3 py-2.5 rounded-xl font-black text-xs border-4 border-black transition-all whitespace-nowrap ${cooldown > 0
+                                            ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                            : 'bg-dopa-cyan text-black shadow-neo-sm hover:shadow-none hover:translate-y-0.5 active:translate-y-1'
+                                            } disabled:opacity-60 disabled:cursor-not-allowed`}
+                                    >
+                                        {otpSending ? '...' : cooldown > 0 ? `${cooldown}${t.auth.otpCooldown}` : otpSent ? t.auth.resendOtp : t.auth.sendOtp}
+                                    </button>
+                                </div>
+                            </div>
 
+                            {/* ===== 分隔线 ===== */}
+                            <div className="flex items-center gap-2 my-1">
+                                <div className="flex-1 h-[2px] bg-gray-200"></div>
+                                <span className="text-xs font-bold text-gray-400">{t.auth.optionalSection}</span>
+                                <div className="flex-1 h-[2px] bg-gray-200"></div>
+                            </div>
+
+                            <div className="space-y-2">
                                 {/* 邀请码（选填） */}
                                 <div className="relative group">
-                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-2xl">🎟️</span>
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xl">🎟️</span>
                                     <input
                                         type="text"
                                         value={inviteCode}
                                         onChange={e => handleInviteCodeChange(e.target.value)}
-                                        placeholder={t.auth.inviteCodePlaceholder || '邀请码（选填）'}
-                                        className={`w-full bg-gray-50 border-4 rounded-xl py-3 pl-12 pr-12 font-bold outline-none transition-colors ${inviteStatus === 'valid' ? 'border-green-500 bg-green-50' :
+                                        placeholder={t.auth.inviteCodePlaceholder}
+                                        className={`w-full bg-gray-50 border-4 rounded-xl py-2.5 pl-11 pr-10 font-bold outline-none transition-colors text-sm ${inviteStatus === 'valid' ? 'border-green-500 bg-green-50' :
                                             inviteStatus === 'invalid' ? 'border-red-400 bg-red-50' :
                                                 'border-black focus:bg-dopa-cyan/10'
                                             }`}
@@ -318,9 +430,9 @@ export default function Auth({ onLogin, onRegister, lang, setLang, t }: AuthProp
                                 </div>
 
                                 {/* 地理位置（选填） */}
-                                <div className="bg-gray-50 border-4 border-black rounded-xl p-3 space-y-2">
-                                    <span className="text-sm font-black flex items-center gap-1">
-                                        🌍 {t.auth.locationLabel || '所在地（选填）'}
+                                <div className="bg-gray-50 border-4 border-black rounded-xl p-2.5 space-y-1.5">
+                                    <span className="text-xs font-black flex items-center gap-1">
+                                        🌍 {t.auth.locationLabel}
                                     </span>
                                     <LocationPicker
                                         value={regLocation}
@@ -334,10 +446,10 @@ export default function Auth({ onLogin, onRegister, lang, setLang, t }: AuthProp
 
                             <button
                                 onClick={handleRegister}
-                                disabled={loading}
-                                className="mt-2 w-full bg-black border-4 border-black text-dopa-yellow font-black text-lg py-3 rounded-xl shadow-neo hover:shadow-none hover:translate-x-1 hover:translate-y-1 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                disabled={loading || !otpSent}
+                                className="mt-1 w-full bg-black border-4 border-black text-dopa-yellow font-black text-lg py-3 rounded-xl shadow-neo hover:shadow-none hover:translate-x-1 hover:translate-y-1 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                {loading ? t.auth.creating : t.auth.registerBtn} ✨
+                                {loading ? t.auth.verifying : t.auth.registerBtn} ✨
                             </button>
                         </div>
                     )}

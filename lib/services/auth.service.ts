@@ -72,4 +72,18 @@ export const authService = {
         if (error) return null;
         return data as string | null;
     },
+
+    /**
+     * 验证注册时的 Email OTP 验证码
+     * NOTE: 验证通过后 Supabase 会自动标记 email_confirmed_at
+     */
+    async verifyOtp(email: string, token: string): Promise<{ user: any; session: any }> {
+        const { data, error } = await supabase.auth.verifyOtp({
+            email,
+            token,
+            type: 'signup',
+        });
+        if (error) throw error;
+        return data;
+    },
 };

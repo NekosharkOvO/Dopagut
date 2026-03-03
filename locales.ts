@@ -14,7 +14,17 @@ export const zh = {
     namePlaceholder: "用户名",
     slogan: "记录每一次畅快淋漓的释放...",
     subSlogan: "肠道多巴胺追踪器",
-    back: "返回"
+    back: "返回",
+    sendOtp: "发送验证码",
+    resendOtp: "重新发送",
+    otpPlaceholder: "验证码",
+    otpSent: "验证码已发送至您的邮箱，如未收到请检查垃圾邮件或稍后重试",
+    otpCooldown: "秒后重试",
+    verifying: "验证中...",
+    requiredSection: "⭐ 必填信息",
+    optionalSection: "选填信息",
+    inviteCodePlaceholder: "邀请码（选填）",
+    locationLabel: "所在地（选填）"
   },
   alerts: {
     copied: "已复制到剪贴板",
@@ -242,7 +252,17 @@ export const en = {
     namePlaceholder: "Username",
     slogan: "Track every glorious release...",
     subSlogan: "Dopamine Gut Tracker",
-    back: "Back"
+    back: "Back",
+    sendOtp: "Send Code",
+    resendOtp: "Resend",
+    otpPlaceholder: "Code",
+    otpSent: "Verification code sent to your email. Check spam if not received.",
+    otpCooldown: "s retry",
+    verifying: "Verifying...",
+    requiredSection: "⭐ Required",
+    optionalSection: "Optional",
+    inviteCodePlaceholder: "Invite Code (optional)",
+    locationLabel: "Location (optional)"
   },
   alerts: {
     copied: "Copied",

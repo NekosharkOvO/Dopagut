@@ -17,8 +17,8 @@ interface AuthContextType {
     emailConfirmed: boolean;
     /** 登录 */
     signIn: (email: string, password: string) => Promise<void>;
-    /** 注册（支持邀请码和位置） */
-    signUp: (email: string, password: string, name: string, inviteCode?: string, location?: string, geo?: { lat: number; lng: number }) => Promise<void>;
+    /** 注册（OTP 验证后写入 profile） */
+    signUp: (email: string, password: string, name: string, otpCode: string, inviteCode?: string, location?: string, geo?: { lat: number; lng: number }) => Promise<void>;
     /** 退出登录 */
     signOut: () => Promise<void>;
     /** 刷新 profile 数据 */
@@ -183,15 +183,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
-    const signUp = async (email: string, password: string, name: string, inviteCode?: string, location?: string, geo?: { lat: number; lng: number }) => {
-        const { user: newUser } = await authService.signUp(email, password, name);
-        if (newUser) {
-            setUser(newUser);
+    const signUp = async (email: string, password: string, name: string, otpCode: string, inviteCode?: string, location?: string, geo?: { lat: number; lng: number }) => {
+        // NOTE: signUp 已由 Auth.tsx 的 handleSendOtp 完成，此处只做 OTP 验证 + 写入 profile
+        const { user: verifiedUser } = await authService.verifyOtp(email, otpCode);
+        if (verifiedUser) {
+            setUser(verifiedUser);
             // NOTE: 数据库触发器自动创建 profile，等待足够时间确保行已存在
             await new Promise(resolve => setTimeout(resolve, 1500));
 
             // 确保 profile 存在（防止触发器延迟）
-            await profileService.ensureProfile(newUser.id, name);
+            await profileService.ensureProfile(verifiedUser.id, name);
 
             // 注册后补充写入地理位置和 GPS 坐标
             const profileUpdates: Record<string, any> = {};
@@ -201,7 +202,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 profileUpdates.geo_lng = geo.lng;
             }
             if (Object.keys(profileUpdates).length > 0) {
-                await profileService.updateProfile(newUser.id, profileUpdates);
+                await profileService.updateProfile(verifiedUser.id, profileUpdates);
             }
 
             // 邀请码处理：加入圈子（带一次重试）
@@ -222,7 +223,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 }
             }
 
-            await loadProfile(newUser.id);
+            await loadProfile(verifiedUser.id);
         }
     };
 
