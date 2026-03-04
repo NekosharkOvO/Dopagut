@@ -454,7 +454,7 @@ const Achievements: React.FC<AchievementsProps> = ({ onNavigate, profile, userId
                 )}
               </div>
               <div className={`text-center border-t-2 pt-4 mt-6 ${isDarkBg(selectedAchievement.bgTheme) ? 'border-white/20' : 'border-black/10'}`}>
-                <p className={`font-black text-xs uppercase tracking-widest ${isDarkBg(selectedAchievement.bgTheme) ? 'text-white/40' : 'text-black/40'}`}>dopagut.app</p>
+                <p className={`font-black text-xs uppercase tracking-widest ${isDarkBg(selectedAchievement.bgTheme) ? 'text-white/40' : 'text-black/40'}`}>dopagut.top</p>
               </div>
             </div>
             <div className="flex flex-row gap-3 w-full">

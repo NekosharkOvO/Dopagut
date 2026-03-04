@@ -581,7 +581,7 @@ const Profile: React.FC<ProfileProps> = ({ onLogout, profile, userId, onRefreshP
                                 </div>
                             </div>
                             <div className="text-center border-t-2 border-black/10 pt-4">
-                                <p className="font-black text-sm text-black/60 uppercase">dopagut.app</p>
+                                <p className="font-black text-sm text-black/60 uppercase">dopagut.top</p>
                             </div>
                         </div>
                         <div className="flex flex-row gap-3 w-full">
