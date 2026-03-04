@@ -324,7 +324,7 @@ const Achievements: React.FC<AchievementsProps> = ({ onNavigate, profile, userId
           const cardClass = `relative rounded-2xl border-4 transition-all transform ${isWide ? 'col-span-2' : 'col-span-1'} ${isUnlocked
             ? `${achievement.bgTheme || 'bg-white'} border-black shadow-neo hover:scale-105 hover:rotate-[calc(var(--tw-rotate)+2deg)] ${isWide ? '' : 'active:scale-90 active:rotate-[calc(var(--tw-rotate)-2deg)]'} cursor-default group`
             : 'bg-gray-100/30 border-gray-400/40 border-dashed cursor-default opacity-60'
-            } ${isWide && isUnlocked ? 'flex flex-row p-0 min-h-[150px] overflow-hidden' : 'flex flex-col items-center text-center p-4'}`;
+            } ${isWide && isUnlocked ? 'flex flex-row p-0 min-h-[150px]' : 'flex flex-col items-center text-center p-4'}`;
 
           const content = (
             <>
@@ -339,7 +339,7 @@ const Achievements: React.FC<AchievementsProps> = ({ onNavigate, profile, userId
               )}
               {isWide && isUnlocked ? (
                 <>
-                  <div className="w-[100px] border-r-4 border-black/10 flex items-center justify-center shrink-0 relative overflow-hidden bg-black/5">
+                  <div className="w-[100px] rounded-l-xl border-r-4 border-black/10 flex items-center justify-center shrink-0 relative overflow-hidden bg-black/5">
                     <div className="absolute inset-0 opacity-5 pointer-events-none select-none text-[8px] leading-none uppercase -rotate-12">
                       DOPAGUT DOPAGUT
                     </div>
