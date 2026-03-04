@@ -667,7 +667,7 @@ const Profile: React.FC<ProfileProps> = ({ onLogout, profile, userId, onRefreshP
                         </p>
                         <div className="w-36 h-36 mx-auto border-4 border-black mb-6 bg-white p-1">
                             <img
-                                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent('哈？居然真有人扫码！我开玩笑的啦，本项目暂时没有收费打算，但还是谢谢你的支持啦～ 🎉')}`}
+                                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent('哈？居然真有人扫码！开玩笑的ww本项目暂时没有收费打算，但还是谢谢你的支持喵～ 🎉')}`}
                                 alt="QR Code"
                                 className="w-full h-full"
                             />
