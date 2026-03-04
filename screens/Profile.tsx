@@ -524,8 +524,8 @@ const Profile: React.FC<ProfileProps> = ({ onLogout, profile, userId, onRefreshP
                             <button onClick={() => setShowSupport(true)} className="w-full bg-dopa-black p-4 rounded-xl border-4 border-white shadow-neo neo-press flex items-center gap-4 relative overflow-hidden group">
                                 <div className="w-14 h-14 bg-dopa-yellow rounded-lg border-2 border-black flex items-center justify-center text-3xl shrink-0 z-10">💎</div>
                                 <div className="flex-1 text-left z-10 text-white">
-                                    <div className="font-black text-lg text-dopa-lime">VIP 会员</div>
-                                    <div className="text-xs font-bold text-gray-400">点击查看详情...</div>
+                                    <div className="font-black text-lg text-dopa-lime">{t.profile.vip}</div>
+                                    <div className="text-xs font-bold text-gray-400">{t.profile.vipDesc}</div>
                                 </div>
                                 <div className="absolute top-2 right-2"><span className="material-symbols-outlined text-white">chevron_right</span></div>
                             </button>
