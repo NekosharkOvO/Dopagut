@@ -27,21 +27,14 @@
 - 📱 **PWA 友好**：支持保存到手机桌面，体验宛如原生 App，附带离线提示功能。
 - 🕶️ **开发者控制台**：内置管理员专用的作弊与数据调试界面（需白名单）。
 
-## 📸 界面预览 (Screenshots)
 
-*(提示：在这边替换你的项目截图)*
-| 登录 / 注册 | 记录页 | 数据日报 |
-| :---: | :---: | :---: |
-| <img src="https://via.placeholder.com/300x600/FAFF00/000000?text=Login+Screen" width="200" /> | <img src="https://via.placeholder.com/300x600/FAFF00/000000?text=Tracker+Screen" width="200" /> | <img src="https://via.placeholder.com/300x600/FAFF00/000000?text=Dashboard+Screen" width="200" /> |
-| **成就大厅** | **世界拉屎地图** | **圈子排行榜** |
-| <img src="https://via.placeholder.com/300x600/FAFF00/000000?text=Achievements+Screen" width="200" /> | <img src="https://via.placeholder.com/300x600/FAFF00/000000?text=Map+Screen" width="200" /> | <img src="https://via.placeholder.com/300x600/FAFF00/000000?text=Leaderboard" width="200" /> |
 
 ## 🛠️ 技术栈 (Tech Stack)
 
 - **前端框架**: React 19 + TypeScript + Vite
 - **UI 样式**: Tailwind CSS (CDN 版) + 纯 CSS 动画库
 - **后端 / 数据库**: Supabase (PostgreSQL + RLS Auth + RPC)
-- **部署环境**: [建议填入你打算部署的平台，如 Vercel/Netlify]
+- **部署环境**: Vercel
 
 ## 🚀 本地运行 (Development)
 
