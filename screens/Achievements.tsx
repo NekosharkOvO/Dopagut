@@ -38,6 +38,13 @@ const Achievements: React.FC<AchievementsProps> = ({ onNavigate, profile, userId
   const [selectedAchievement, setSelectedAchievement] = useState<Achievement | null>(null);
   const [activeTabIdx, setActiveTabIdx] = useState(0);
   const [toast, setToast] = useState<{ msg: string, phase: 'in' | 'out' | null }>({ msg: '', phase: null });
+  // NOTE: 用 localStorage 持久化已查看成就列表，新解锁的成就未查看时显示小红点
+  const [viewedIds, setViewedIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('viewed_achievements');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch { return new Set(); }
+  });
 
   /**
    * 显示带滑入/滑出动画的置顶 Toast
@@ -95,9 +102,13 @@ const Achievements: React.FC<AchievementsProps> = ({ onNavigate, profile, userId
         };
       });
 
+      // NOTE: 已解锁的按解锁时间倒序（最新在前），未解锁的按原顺序排在后面
       mapped.sort((a, b) => {
         if (!!a.unlockedAt && !b.unlockedAt) return -1;
         if (!a.unlockedAt && !!b.unlockedAt) return 1;
+        if (a.unlockedAt && b.unlockedAt) {
+          return new Date(b.unlockedAt).getTime() - new Date(a.unlockedAt).getTime();
+        }
         return 0;
       });
 
@@ -142,6 +153,8 @@ const Achievements: React.FC<AchievementsProps> = ({ onNavigate, profile, userId
   const filteredAchievements = useMemo(() => {
     const currentCategory = TABS_MAPPING[activeTabIdx];
     if (currentCategory === 'all') return achievements;
+    // NOTE: "稀有" tab 按 rarity 字段筛选（rare + legendary），而非 categories
+    if (currentCategory === 'rare') return achievements.filter(a => a.rarity === 'rare' || a.rarity === 'legendary');
     return achievements.filter(a => a.categories.includes(currentCategory));
   }, [activeTabIdx, achievements]);
 
@@ -191,6 +204,13 @@ const Achievements: React.FC<AchievementsProps> = ({ onNavigate, profile, userId
 
   const handleSelectAchievement = (achievement: Achievement) => {
     if (!achievement.unlockedAt) return;
+    // 标记为已查看，持久化到 localStorage
+    if (!viewedIds.has(achievement.id)) {
+      const newViewed = new Set(viewedIds);
+      newViewed.add(achievement.id);
+      setViewedIds(newViewed);
+      localStorage.setItem('viewed_achievements', JSON.stringify([...newViewed]));
+    }
     setTimeout(() => setSelectedAchievement(achievement), 80);
   }
 
@@ -296,6 +316,7 @@ const Achievements: React.FC<AchievementsProps> = ({ onNavigate, profile, userId
           </div>
         ) : filteredAchievements.map((achievement) => {
           const isUnlocked = !!achievement.unlockedAt;
+          const isNew = isUnlocked && !viewedIds.has(achievement.id);
           const dark = isUnlocked && isDarkBg(achievement.bgTheme);
           const isWide = achievement.rarity === 'legendary';
           const rotation = isUnlocked ? getRotation(achievement.id) : '0deg';
@@ -307,6 +328,15 @@ const Achievements: React.FC<AchievementsProps> = ({ onNavigate, profile, userId
 
           const content = (
             <>
+              {/* 新解锁未查看的成就 - 角落小红点 */}
+              {isNew && (
+                <div className="absolute -top-1.5 -left-1.5 z-30">
+                  <span className="relative flex h-4 w-4">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500 border-2 border-black"></span>
+                  </span>
+                </div>
+              )}
               {isWide && isUnlocked ? (
                 <>
                   <div className="w-[100px] border-r-4 border-black/10 flex items-center justify-center shrink-0 relative overflow-hidden bg-black/5">
@@ -414,8 +444,14 @@ const Achievements: React.FC<AchievementsProps> = ({ onNavigate, profile, userId
                   {selectedAchievement.title}
                 </h2>
                 <p className={`text-base font-bold text-center max-w-[90%] mb-4 ${isDarkBg(selectedAchievement.bgTheme) ? 'text-white/90' : 'text-black/80'}`}>
-                  {selectedAchievement.description}
+                  {selectedAchievement.description.replace(/[。.]+$/, '')}
                 </p>
+                {/* 解锁时间戳 */}
+                {selectedAchievement.unlockedAt && (
+                  <p className={`text-xs font-bold mt-1 ${isDarkBg(selectedAchievement.bgTheme) ? 'text-white/50' : 'text-black/40'}`}>
+                    {(t.nav.daily === '日报' ? '解锁于 ' : 'Unlocked at ')}{new Date(selectedAchievement.unlockedAt).toLocaleString()}
+                  </p>
+                )}
               </div>
               <div className={`text-center border-t-2 pt-4 mt-6 ${isDarkBg(selectedAchievement.bgTheme) ? 'border-white/20' : 'border-black/10'}`}>
                 <p className={`font-black text-xs uppercase tracking-widest ${isDarkBg(selectedAchievement.bgTheme) ? 'text-white/40' : 'text-black/40'}`}>dopagut.app</p>

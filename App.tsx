@@ -9,6 +9,7 @@ import BottomNav from './components/BottomNav';
 import Auth from './screens/Auth';
 import { AuthProvider, useAuth } from './contexts/auth-context';
 import AchievementToast from './components/AchievementToast';
+import { useOnlineStatus } from './hooks/use-online-status';
 
 // NOTE: 国际化资源从 TS 文件导入
 import { zh, en } from './locales.ts';
@@ -18,6 +19,7 @@ import { zh, en } from './locales.ts';
  */
 const AppContent: React.FC = () => {
   const { user, profile, loading, emailConfirmed, signIn, signUp, signOut, refreshProfile } = useAuth();
+  const isOnline = useOnlineStatus();
 
   // App 状态
   const [activeTab, setActiveTab] = useState<Tab>(Tab.Tracker);
@@ -59,11 +61,15 @@ const AppContent: React.FC = () => {
     setActiveTab(Tab.Tracker);
   };
 
-  // 加载中显示空白（避免闪烁）
+  // 加载中显示品牌 loading
   if (loading) {
     return (
-      <div className="min-h-screen bg-dopa-purple flex items-center justify-center">
+      <div className="max-w-md mx-auto h-[100dvh] bg-dopa-white flex flex-col items-center justify-center relative overflow-hidden shadow-2xl">
         <div className="text-6xl animate-bounce">💩</div>
+        <div className="font-display text-2xl text-black mt-3 tracking-wider">DopaGut</div>
+        <div className="mt-4 w-28 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+          <div className="h-full bg-dopa-lime rounded-full" style={{ animation: 'loading-bar 2s ease-in-out infinite' }} />
+        </div>
       </div>
     );
   }
@@ -106,6 +112,14 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="max-w-md mx-auto h-[100dvh] bg-dopa-white flex flex-col relative overflow-hidden shadow-2xl">
+      {/* NOTE: 离线提示 */}
+      {!isOnline && (
+        <div className="bg-black text-white text-xs font-bold px-4 py-2 flex items-center gap-2 z-[70] animate-in slide-in-from-top duration-300">
+          <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
+          <span>{t.alerts.offline}</span>
+        </div>
+      )}
+
       {/* NOTE: Profile 加载失败提示 —— 认证成功但资料未加载时提示用户 */}
       {user && !profile && !loading && (
         <div className="bg-dopa-yellow text-black text-xs font-bold px-4 py-3 flex items-center justify-between z-[65] shadow-md">

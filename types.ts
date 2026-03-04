@@ -57,9 +57,31 @@ export interface Log {
 }
 
 export type AchievementType =
-  | 'early_bird' | 'thinker' | 'ghost_poop' | 'fiber_freak' | 'sprinter'
-  | 'midnight_owl' | 'bristol_king' | 'color_collector' | 'zen_master'
-  | 'nuclear_blast' | 'spicy_lover';
+  // 时间类
+  | 'early_bird' | 'midnight_owl' | 'lunch_break' | 'rush_hour' | 'teatime'
+  | 'weekend_warrior' | 'monday_blues' | 'new_year_drop' | 'double_eleven'
+  | 'valentine' | 'christmas_gift' | 'april_fools'
+  // 时长/速度类
+  | 'thinker' | 'fall_bean' | 'flash' | 'path_of_pain' | 'philosopher'
+  | 'speed_demon' | 'slow_life' | 'hex_a_gone' | 'consistent_timer'
+  | 'sonic_trio' | 'two_minute_master' | 'endurance_king'
+  // Bristol 收集类
+  | 'bristol_king' | 'iridium_quality' | 'banana_fan' | 'rock_solid'
+  | 'slime_climb' | 'soft_serve' | 'healthy_streak' | 'extreme_collector'
+  // 颜色收集类
+  | 'color_collector' | 'rainbow_master' | 'golden_pumpkin' | 'code_red'
+  | 'void_heart' | 'green_goblin' | 'fifty_shades' | 'pale_rider'
+  // 心情类
+  | 'zen_master' | 'nuclear_blast' | 'spicy_lover' | 'mood_collector'
+  | 'mood_master' | 'happy_camper' | 'struggle_bus' | 'pain_veteran'
+  | 'classic_man' | 'holy_water'
+  // 里程碑类
+  | 'fiber_freak' | 'qualified' | 'ten_timer' | 'half_century'
+  | 'heart_kill' | 'grand_master' | 'ascension_20' | 'monthly_iron'
+  | 'team_round' | 'triple_threat'
+  // 隐藏/组合类
+  | 'ghost_poop' | 'perfect_run' | 'lucky_dog' | 'mega_blast'
+  | 'crown_grabber' | 'achievement_hunter';
 export type Rarity = 'common' | 'rare' | 'legendary';
 export type Category = 'all' | 'daily' | 'vibe' | 'stat' | 'collection' | 'time' | 'special' | 'hidden' | 'rare';
 

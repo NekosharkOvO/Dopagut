@@ -49,6 +49,8 @@ const MOOD_MAP: Record<string, { emoji: string; zh: string; en: string }> = {
     struggle: { emoji: '😫', zh: '艰难奋战', en: 'Struggle' },
     zen: { emoji: '🧘', zh: '禅意心流', en: 'Zen' },
     nuclear: { emoji: '☢️', zh: '核弹级别', en: 'Nuclear' },
+    happy: { emoji: '😊', zh: '心情愉悦', en: 'Happy' },
+    pain: { emoji: '😖', zh: '痛苦难耐', en: 'Pain' },
 };
 const moodDisplay = (mood: string | undefined, lang: 'zh' | 'en' = 'zh'): string => {
     if (!mood) return '';

@@ -20,6 +20,8 @@ export interface Profile {
     last_duration_seconds?: number;
     last_mood?: string;
     achievement_count?: number;
+    // NOTE: 管理员标识，用于开发者控制台权限校验
+    is_admin?: boolean;
 }
 
 export const authService = {
@@ -85,5 +87,37 @@ export const authService = {
         });
         if (error) throw error;
         return data;
+    },
+
+    /**
+     * 发送密码重置验证码到用户邮箱
+     * Supabase 会发送 6 位 OTP 验证码
+     */
+    async resetPassword(email: string): Promise<void> {
+        const { error } = await supabase.auth.resetPasswordForEmail(email);
+        if (error) throw error;
+    },
+
+    /**
+     * 用 OTP 验证码验证身份，然后设置新密码
+     * 先用 recovery 类型 OTP 验证获取临时 session，再调用 updateUser 设置新密码
+     */
+    async verifyResetOtp(email: string, token: string, newPassword: string): Promise<void> {
+        // 用 recovery OTP 验证身份
+        const { error: verifyError } = await supabase.auth.verifyOtp({
+            email,
+            token,
+            type: 'recovery',
+        });
+        if (verifyError) throw verifyError;
+
+        // 验证通过后 Supabase 会自动建立临时 session，此时可以更新密码
+        const { error: updateError } = await supabase.auth.updateUser({
+            password: newPassword,
+        });
+        if (updateError) throw updateError;
+
+        // 重置完成后登出，让用户用新密码重新登录
+        await supabase.auth.signOut();
     },
 };

@@ -21,6 +21,8 @@ const getStatusTypes = (t: any) => [
    { id: 'struggle', label: t.tracker.status.struggle, icon: '😫', bg: 'bg-gray-400', border: 'border-black', rotate: '-rotate-2' },
    { id: 'zen', label: t.tracker.status.zen, icon: '🧘', bg: 'bg-dopa-lime', border: 'border-black', rotate: 'rotate-1' },
    { id: 'nuclear', label: t.tracker.status.nuclear, icon: '☢️', bg: 'bg-dopa-orange', border: 'border-black', rotate: '-rotate-1' },
+   { id: 'happy', label: t.tracker.status.happy, icon: '😊', bg: 'bg-dopa-yellow', border: 'border-black', rotate: 'rotate-2' },
+   { id: 'pain', label: t.tracker.status.pain, icon: '😖', bg: 'bg-dopa-pink', border: 'border-black', text: 'text-white', rotate: '-rotate-1' },
 ];
 
 const COLORS = [
@@ -30,6 +32,7 @@ const COLORS = [
    { id: 'black', hex: '#212121' },
    { id: 'red', hex: '#F44336' },
    { id: 'pale', hex: '#F5F5DC' },
+   { id: 'golden', hex: '#FFD700' },
 ];
 
 // Bristol 量表数据生成器

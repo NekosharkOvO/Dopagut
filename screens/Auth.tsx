@@ -1,6 +1,7 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import LocationPicker from '../components/LocationPicker';
+import PolicyModal from '../components/PolicyModal';
 import { authService } from '../lib/api';
 import { Country, State } from 'country-state-city';
 
@@ -13,9 +14,18 @@ interface AuthProps {
 }
 
 export default function Auth({ onLogin, onRegister, lang, setLang, t }: AuthProps) {
-    const [view, setView] = useState<'landing' | 'login' | 'register'>('landing');
+    const [view, setView] = useState<'landing' | 'login' | 'register' | 'reset'>('landing');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    // NOTE: 密码重置邮件发送成功标志
+    const [resetSent, setResetSent] = useState(false);
+    // 密码重置表单状态
+    const [resetOtp, setResetOtp] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    // 协议勾选状态
+    const [agreedPolicy, setAgreedPolicy] = useState(false);
+    const [policyModal, setPolicyModal] = useState<'privacy' | 'terms' | null>(null);
 
     // 表单状态
     const [email, setEmail] = useState('');
@@ -329,6 +339,144 @@ export default function Auth({ onLogin, onRegister, lang, setLang, t }: AuthProp
                             >
                                 {loading ? t.auth.processing : t.auth.enterBtn} 🚀
                             </button>
+
+                            {/* 忘记密码链接 */}
+                            <button
+                                onClick={() => { setView('reset'); setError(null); setResetSent(false); }}
+                                className="text-sm font-bold text-gray-400 hover:text-dopa-pink transition-colors text-center mt-1"
+                            >
+                                {t.auth.forgotPassword}
+                            </button>
+                        </div>
+                    )}
+
+                    {/* RESET PASSWORD */}
+                    {view === 'reset' && (
+                        <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-right-8 duration-300">
+                            <div className="flex items-center gap-2 mb-2">
+                                <button onClick={() => { setView('login'); setError(null); setResetSent(false); setResetOtp(''); setNewPassword(''); setConfirmPassword(''); }} className="w-8 h-8 flex items-center justify-center border-2 border-black rounded bg-gray-100 hover:bg-gray-200"><span className="material-icons-round text-sm font-bold">arrow_back</span></button>
+                                <h2 className="text-2xl font-black italic">{t.auth.resetTitle}</h2>
+                            </div>
+
+                            {!resetSent ? (
+                                /* 第一步：输入邮箱发送验证码 */
+                                <div className="space-y-3">
+                                    <p className="text-sm font-bold text-gray-500">
+                                        {lang === 'zh' ? '输入你的注册邮箱，我们会发送 6 位验证码' : 'Enter your email and we\'ll send a 6-digit code'}
+                                    </p>
+                                    <div className="relative group">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-2xl group-focus-within:scale-110 transition-transform">📧</span>
+                                        <input
+                                            type="email"
+                                            value={email}
+                                            onChange={e => setEmail(e.target.value)}
+                                            placeholder={t.auth.emailPlaceholder}
+                                            className="w-full bg-gray-50 border-4 border-black rounded-xl py-3 pl-12 pr-4 font-bold outline-none focus:bg-dopa-yellow/20 transition-colors"
+                                        />
+                                    </div>
+                                    <button
+                                        onClick={async () => {
+                                            if (!email) return;
+                                            setLoading(true);
+                                            setError(null);
+                                            try {
+                                                await authService.resetPassword(email);
+                                                setResetSent(true);
+                                            } catch (err: any) {
+                                                setError(err?.message || 'Failed');
+                                            } finally {
+                                                setLoading(false);
+                                            }
+                                        }}
+                                        disabled={loading || !email}
+                                        className="w-full bg-dopa-pink border-4 border-black text-white font-black text-lg py-3 rounded-xl shadow-neo hover:shadow-none hover:translate-x-1 hover:translate-y-1 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {loading ? t.auth.resetSending : t.auth.resetBtn} 📨
+                                    </button>
+                                </div>
+                            ) : (
+                                /* 第二步：输入验证码 + 新密码 */
+                                <div className="space-y-3">
+                                    <div className="bg-dopa-lime/20 border-4 border-black rounded-xl p-3 text-center">
+                                        <p className="font-bold text-xs">{t.auth.resetSent}</p>
+                                    </div>
+
+                                    <div className="relative group">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-2xl group-focus-within:scale-110 transition-transform">📧</span>
+                                        <input
+                                            type="email"
+                                            value={email}
+                                            onChange={e => setEmail(e.target.value)}
+                                            placeholder={t.auth.emailPlaceholder}
+                                            className="w-full bg-gray-50 border-4 border-black rounded-xl py-3 pl-12 pr-4 font-bold outline-none focus:bg-dopa-yellow/20 transition-colors"
+                                        />
+                                    </div>
+                                    <div className="relative group">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-2xl group-focus-within:scale-110 transition-transform">🔢</span>
+                                        <input
+                                            type="text"
+                                            inputMode="numeric"
+                                            maxLength={6}
+                                            value={resetOtp}
+                                            onChange={e => setResetOtp(e.target.value.replace(/\D/g, ''))}
+                                            placeholder={t.auth.otpPlaceholder}
+                                            className="w-full bg-gray-50 border-4 border-black rounded-xl py-3 pl-12 pr-4 font-bold outline-none focus:bg-dopa-yellow/20 transition-colors tracking-[0.3em] text-center text-lg"
+                                        />
+                                    </div>
+                                    <div className="relative group">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-2xl group-focus-within:scale-110 transition-transform">🔑</span>
+                                        <input
+                                            type="password"
+                                            value={newPassword}
+                                            onChange={e => setNewPassword(e.target.value)}
+                                            placeholder={t.auth.newPassword}
+                                            className="w-full bg-gray-50 border-4 border-black rounded-xl py-3 pl-12 pr-4 font-bold outline-none focus:bg-dopa-yellow/20 transition-colors"
+                                        />
+                                    </div>
+                                    <div className="relative group">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-2xl group-focus-within:scale-110 transition-transform">🔐</span>
+                                        <input
+                                            type="password"
+                                            value={confirmPassword}
+                                            onChange={e => setConfirmPassword(e.target.value)}
+                                            placeholder={t.auth.confirmPassword}
+                                            className="w-full bg-gray-50 border-4 border-black rounded-xl py-3 pl-12 pr-4 font-bold outline-none focus:bg-dopa-yellow/20 transition-colors"
+                                        />
+                                    </div>
+
+                                    <button
+                                        onClick={async () => {
+                                            if (newPassword.length < 6) {
+                                                setError(t.auth.passwordTooShort);
+                                                return;
+                                            }
+                                            if (newPassword !== confirmPassword) {
+                                                setError(t.auth.passwordMismatch);
+                                                return;
+                                            }
+                                            setLoading(true);
+                                            setError(null);
+                                            try {
+                                                await authService.verifyResetOtp(email, resetOtp, newPassword);
+                                                setResetSent(false);
+                                                setResetOtp('');
+                                                setNewPassword('');
+                                                setConfirmPassword('');
+                                                setView('login');
+                                                setError(t.auth.resetSuccess);
+                                            } catch (err: any) {
+                                                setError(err?.message || 'Reset failed');
+                                            } finally {
+                                                setLoading(false);
+                                            }
+                                        }}
+                                        disabled={loading || !resetOtp || !newPassword || !confirmPassword}
+                                        className="w-full bg-dopa-lime border-4 border-black text-black font-black text-lg py-3 rounded-xl shadow-neo hover:shadow-none hover:translate-x-1 hover:translate-y-1 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {loading ? t.auth.resetting : t.auth.confirmReset} ✅
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -444,9 +592,25 @@ export default function Auth({ onLogin, onRegister, lang, setLang, t }: AuthProp
                                 </div>
                             </div>
 
+                            {/* 协议勾选 */}
+                            <label className="flex items-start gap-2 mt-1 cursor-pointer group">
+                                <input
+                                    type="checkbox"
+                                    checked={agreedPolicy}
+                                    onChange={e => setAgreedPolicy(e.target.checked)}
+                                    className="mt-0.5 w-4 h-4 accent-dopa-pink border-2 border-black rounded shrink-0"
+                                />
+                                <span className="text-[10px] font-bold text-gray-500 leading-tight">
+                                    {t.auth.agreeTerms}
+                                    <button type="button" onClick={(e) => { e.preventDefault(); setPolicyModal('terms'); }} className="text-dopa-pink underline mx-0.5 hover:text-black transition-colors">{t.auth.termsLink}</button>
+                                    {t.auth.andText}
+                                    <button type="button" onClick={(e) => { e.preventDefault(); setPolicyModal('privacy'); }} className="text-dopa-pink underline mx-0.5 hover:text-black transition-colors">{t.auth.privacyLink}</button>
+                                </span>
+                            </label>
+
                             <button
                                 onClick={handleRegister}
-                                disabled={loading || !otpSent}
+                                disabled={loading || !otpSent || !agreedPolicy}
                                 className="mt-1 w-full bg-black border-4 border-black text-dopa-yellow font-black text-lg py-3 rounded-xl shadow-neo hover:shadow-none hover:translate-x-1 hover:translate-y-1 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {loading ? t.auth.verifying : t.auth.registerBtn} ✨
@@ -458,10 +622,19 @@ export default function Auth({ onLogin, onRegister, lang, setLang, t }: AuthProp
 
                 {/* Footer */}
                 <div className="bg-gray-100 border-t-4 border-black p-3 text-center">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">© 2025 DOPAGUT INC.</p>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Copyright © 2026 NEKOSHARK</p>
                 </div>
 
             </div>
+
+            {/* 协议弹窗 */}
+            {policyModal && (
+                <PolicyModal
+                    type={policyModal}
+                    lang={lang}
+                    onClose={() => setPolicyModal(null)}
+                />
+            )}
         </div>
     );
 }

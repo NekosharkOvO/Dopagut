@@ -282,9 +282,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate, profile, userId, t, i
     const lastBristol = dailyMVP?.bristolType || 4;
     const lang = t.auth.welcome.includes('欢迎') ? 'zh' : 'en';
 
-    let hStatus = t.dashboard.hydrationStatus.good;
-    let hColor = 'text-dopa-lime';
-    let hTip = t.dashboard.drinkMore;
+    // NOTE: 无记录时水分状态显示占位符，但 advice 仍需生成
+    const noData = !dailyMVP;
+
+    let hStatus = noData ? '--' : t.dashboard.hydrationStatus.good;
+    let hColor = noData ? 'text-white' : 'text-dopa-lime';
+    let hTip = noData ? '--' : t.dashboard.drinkMore;
 
     let category = 'normal';
 
@@ -345,7 +348,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate, profile, userId, t, i
 
     // 默认或无数据状态
     if (seconds === 0 && averageTime === '0m 0s') {
-      return { tip: t.dashboard.timeStatus?.normal || '--', color: 'text-white' };
+      return { tip: '--', color: 'text-white' };
     }
 
     if (seconds < 120) return { tip: t.dashboard.timeStatus.sonic, color: 'text-dopa-pink' };
@@ -552,7 +555,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate, profile, userId, t, i
             <StatCard
               icon="timer"
               label={t.dashboard.avgTime}
-              value={averageTime}
+              value={logs.length === 0 ? '--' : averageTime}
               tag={timeEvaluation.tip}
               bg="bg-dopa-lime"
               color={timeEvaluation.color}

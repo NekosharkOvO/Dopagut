@@ -168,6 +168,51 @@
     .dot-pulse {
       animation: dot-pulse 1.4s infinite;
     }
+
+    /* 骨架屏脉冲动画 */
+    @keyframes skeleton-pulse {
+
+      0%,
+      100% {
+        opacity: 0.4;
+      }
+
+      50% {
+        opacity: 0.8;
+      }
+    }
+
+    .skeleton-pulse {
+      animation: skeleton-pulse 1.5s ease-in-out infinite;
+    }
+
+    /* 首屏 loading 进度条 */
+    @keyframes loading-bar {
+      0% {
+        width: 0%;
+      }
+
+      50% {
+        width: 70%;
+      }
+
+      100% {
+        width: 100%;
+      }
+    }
+
+    /* bounce 动画（首屏用） */
+    @keyframes bounce {
+
+      0%,
+      100% {
+        transform: translateY(0);
+      }
+
+      50% {
+        transform: translateY(-20px);
+      }
+    }
   </style>
   <script type="importmap">
 {
@@ -184,7 +229,22 @@
 </head>
 
 <body class="bg-dopa-purple text-dopa-black min-h-screen">
-  <div id="root"></div>
+  <div id="root">
+    <!-- 首屏 loading 占位，React 挂载后自动替换 -->
+    <div
+      style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;height:100dvh;background:#9D00FF;font-family:'Noto Sans SC',sans-serif;">
+      <div style="font-size:72px;animation:bounce 1s infinite;">💩</div>
+      <div
+        style="margin-top:24px;font-family:'Bungee',cursive;font-size:28px;color:#FAFF00;letter-spacing:2px;font-weight:900;">
+        DopaGut</div>
+      <div
+        style="margin-top:16px;width:120px;height:6px;background:rgba(255,255,255,0.2);border-radius:99px;overflow:hidden;">
+        <div style="height:100%;background:#39FF14;border-radius:99px;animation:loading-bar 2s ease-in-out infinite;">
+        </div>
+      </div>
+      <div style="margin-top:12px;font-size:11px;color:rgba(255,255,255,0.5);font-weight:700;">Loading...</div>
+    </div>
+  </div>
   <script type="module" src="/index.tsx"></script>
 </body>
 

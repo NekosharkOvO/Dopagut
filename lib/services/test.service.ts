@@ -52,5 +52,65 @@ export const testService = {
             .upsert(achievementDefinitions, { onConflict: 'id' });
 
         if (error) throw error;
+    },
+
+    /**
+     * 锁定用户所有成就（清空 user_achievements 表）
+     */
+    async lockAllAchievements(userId: string): Promise<void> {
+        const { error } = await supabase
+            .from('user_achievements')
+            .delete()
+            .eq('user_id', userId);
+        if (error) throw error;
+    },
+
+    /**
+     * 锁定特定成就
+     */
+    async lockOneAchievement(userId: string, achievementId: string): Promise<void> {
+        const { error } = await supabase
+            .from('user_achievements')
+            .delete()
+            .eq('user_id', userId)
+            .eq('achievement_type', achievementId);
+        if (error) throw error;
+    },
+
+    /**
+     * 解锁特定成就
+     */
+    async unlockOneAchievement(userId: string, achievementId: string): Promise<void> {
+        const { error } = await supabase
+            .from('user_achievements')
+            .upsert({
+                user_id: userId,
+                achievement_type: achievementId,
+                unlocked_at: new Date().toISOString(),
+                current_progress: 1
+            }, { onConflict: 'user_id,achievement_type' });
+        if (error) throw error;
+    },
+
+    /**
+     * 删除特定记录
+     */
+    async deleteLog(logId: string): Promise<void> {
+        const { error } = await supabase
+            .from('poop_logs')
+            .delete()
+            .eq('id', logId);
+        if (error) throw error;
+    },
+
+    /**
+     * 清除用户所有记录（仅 poop_logs，不清成就）
+     */
+    async clearAllLogs(userId: string): Promise<void> {
+        const { error } = await supabase
+            .from('poop_logs')
+            .delete()
+            .eq('user_id', userId);
+        if (error) throw error;
     }
 };

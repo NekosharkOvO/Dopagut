@@ -1,19 +1,23 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { getLocalizedLocation } from '../data';
-import { TITLE_MILESTONES, TitleMilestone } from '../data/titles';
-import { Log } from '../types';
-import { Profile as ProfileType, profileService, testService, achievementService } from '../lib/api';
+import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
+import { Tab, Log } from '../types';
+import { Profile as ProfileType, achievementService, profileService, testService } from '../lib/api';
 import { useLogs } from '../hooks/use-logs';
 import AvatarCropper from '../components/AvatarCropper';
 import LocationPicker from '../components/LocationPicker';
+import { EXPERT_TIPS_DATA } from '../data/expert-tips';
+import { getLocalizedLocation } from '../data';
+import { TITLE_MILESTONES, TitleMilestone } from '../data/titles';
+
+// NOTE: 成就定义列表，仅在开发者控制台中用于单独解锁/锁定
+import { achievementDefinitions } from '../lib/achievements/definitions';
 
 interface ProfileProps {
     onLogout: () => void;
     profile: ProfileType | null;
     userId: string;
     onRefreshProfile: () => Promise<void>;
-    lang: 'zh' | 'en';
-    setLang: (lang: 'zh' | 'en') => void;
+    lang: string;
+    setLang: (l: string) => void;
     t: any;
     isActive?: boolean;
 }
@@ -38,7 +42,31 @@ const Profile: React.FC<ProfileProps> = ({ onLogout, profile, userId, onRefreshP
     const [showEditName, setShowEditName] = useState(false);
     const [showCropModal, setShowCropModal] = useState(false);
     const [showLocation, setShowLocation] = useState(false);
-    const [showGodMode, setShowGodMode] = useState(false); // 开发者面板控制
+    const [showGodMode, setShowGodMode] = useState(false);
+    // NOTE: 版本号连按计数器，用于隐蔽入口
+    const tapCountRef = useRef(0);
+    const tapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // 开发者控制台中的成就选择器
+    const [devAchievementId, setDevAchievementId] = useState(achievementDefinitions[0]?.id || '');
+    // 开发者控制台中的记录选择器
+    const [devLogId, setDevLogId] = useState('');
+
+    /**
+     * 隐蔽入口：版本号区域连按 5 次触发
+     * 需 is_admin 为 true 才能进入
+     */
+    const handleSecretTap = useCallback(() => {
+        tapCountRef.current += 1;
+        if (tapTimerRef.current) clearTimeout(tapTimerRef.current);
+        // 2 秒内未继续点击则重置
+        tapTimerRef.current = setTimeout(() => { tapCountRef.current = 0; }, 2000);
+        if (tapCountRef.current >= 5) {
+            tapCountRef.current = 0;
+            if (profile?.is_admin) {
+                setShowGodMode(true);
+            }
+        }
+    }, [profile?.is_admin]);
     const [showTitleModal, setShowTitleModal] = useState(false);
     const [toastMsg, setToastMsg] = useState('');
     const [toastPhase, setToastPhase] = useState<'in' | 'out' | null>(null);
@@ -401,9 +429,7 @@ const Profile: React.FC<ProfileProps> = ({ onLogout, profile, userId, onRefreshP
                                 )}
                             </div>
                             <div
-                                className="absolute -bottom-2 -right-4 bg-dopa-purple text-white font-display text-xs font-black px-3 py-1 border-2 border-black shadow-neo-sm transform rotate-6 z-20 cursor-help active:scale-110 transition-transform"
-                                onDoubleClick={() => setShowGodMode(true)}
-                                title="Double click for God Mode"
+                                className="absolute -bottom-2 -right-4 bg-dopa-purple text-white font-display text-xs font-black px-3 py-1 border-2 border-black shadow-neo-sm transform rotate-6 z-20"
                             >
                                 {t.profile.level}{userLevel}
                             </div>
@@ -505,6 +531,14 @@ const Profile: React.FC<ProfileProps> = ({ onLogout, profile, userId, onRefreshP
                             </button>
                         </div>
                     </section>
+
+                    {/* 隐蔽入口：底部版本号文字，连按 5 次触发 */}
+                    <div
+                        className="text-center py-6 select-none"
+                        onClick={handleSecretTap}
+                    >
+                        <span className="text-[10px] text-gray-300 font-mono">DopaGut v2.1</span>
+                    </div>
                 </div>
             </main>
 
@@ -631,8 +665,12 @@ const Profile: React.FC<ProfileProps> = ({ onLogout, profile, userId, onRefreshP
                         <p className="font-bold text-sm mb-6 whitespace-pre-wrap leading-tight">
                             {t.profile.support.desc}
                         </p>
-                        <div className="w-32 h-32 bg-gray-200 mx-auto border-4 border-black flex items-center justify-center mb-6">
-                            <span className="font-mono font-bold text-xs text-gray-500">{t.profile.support.placeholder}</span>
+                        <div className="w-36 h-36 mx-auto border-4 border-black mb-6 bg-white p-1">
+                            <img
+                                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent('哈？居然真有人扫码！我开玩笑的啦，本项目暂时没有收费打算，但还是谢谢你的支持啦～ 🎉')}`}
+                                alt="QR Code"
+                                className="w-full h-full"
+                            />
                         </div>
                         <button onClick={() => setShowSupport(false)} className="w-full bg-black text-white font-black py-3 rounded-xl border-4 border-transparent hover:border-dopa-lime transition-all">
                             {t.profile.support.btn}
@@ -828,8 +866,8 @@ const Profile: React.FC<ProfileProps> = ({ onLogout, profile, userId, onRefreshP
                 </div>
             )}
 
-            {/* 8. God Mode (Developer Console) */}
-            {showGodMode && (
+            {/* 8. God Mode (Developer Console) — 仅管理员可见 */}
+            {showGodMode && profile?.is_admin && (
                 <div className="fixed inset-0 z-[150] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
                     <div className="bg-gray-50 border-[6px] border-black w-full max-w-xs rounded-[2.5rem] overflow-hidden shadow-[16px_16px_0_rgba(0,0,0,1)]">
                         <header className="bg-black text-white p-5 text-center border-b-[6px] border-black">
@@ -840,97 +878,209 @@ const Profile: React.FC<ProfileProps> = ({ onLogout, profile, userId, onRefreshP
                             </div>
                         </header>
 
-                        <div className="p-6 space-y-6 max-h-[65vh] overflow-y-auto custom-scrollbar">
-                            {/* Emergency Flush */}
+                        <div className="p-5 space-y-5 max-h-[65vh] overflow-y-auto custom-scrollbar">
+                            {/* ═══ 数据核弹 ═══ */}
                             <div className="space-y-2">
-                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Data Purge</label>
-                                <button
-                                    onClick={async (e) => {
-                                        if (!confirm('ERASE EVERYTHING?')) return;
-                                        const btn = e.currentTarget;
-                                        btn.disabled = true;
-                                        try {
-                                            await testService.resetUserData(userId);
-                                            await onRefreshProfile();
-                                            alert('IDENTITY ERASED');
-                                        } catch (err: any) {
-                                            alert(`ERROR: ${err}`);
-                                        } finally {
-                                            btn.disabled = false;
-                                        }
-                                    }}
-                                    className="w-full bg-white text-red-500 border-4 border-black py-3 rounded-2xl font-black shadow-neo-sm active:translate-y-1 active:shadow-none transition-all"
-                                >
-                                    WIPE ENTIRE DATABASE ☢️
-                                </button>
+                                <label className="text-[10px] font-black text-red-400 uppercase tracking-widest pl-1">{t.devConsole.nukeZone}</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                        onClick={async (e) => {
+                                            if (!confirm(t.devConsole.wipeAllConfirm)) return;
+                                            const btn = e.currentTarget;
+                                            btn.disabled = true;
+                                            try {
+                                                await testService.resetUserData(userId);
+                                                await onRefreshProfile();
+                                                showToast(t.devConsole.wipeAllDone);
+                                            } catch (err: any) { alert(`ERROR: ${err}`); }
+                                            finally { btn.disabled = false; }
+                                        }}
+                                        className="bg-white text-red-500 border-4 border-black py-3 rounded-2xl font-black text-[10px] uppercase shadow-neo-sm active:translate-y-1 active:shadow-none transition-all"
+                                    >
+                                        {t.devConsole.wipeAll}
+                                    </button>
+                                    <button
+                                        onClick={async (e) => {
+                                            if (!confirm(t.devConsole.clearLogsConfirm)) return;
+                                            const btn = e.currentTarget;
+                                            btn.disabled = true;
+                                            try {
+                                                await testService.clearAllLogs(userId);
+                                                await onRefreshProfile();
+                                                showToast(t.devConsole.clearLogsDone);
+                                            } catch (err: any) { alert(`ERROR: ${err}`); }
+                                            finally { btn.disabled = false; }
+                                        }}
+                                        className="bg-white text-orange-500 border-4 border-black py-3 rounded-2xl font-black text-[10px] uppercase shadow-neo-sm active:translate-y-1 active:shadow-none transition-all"
+                                    >
+                                        {t.devConsole.clearLogs}
+                                    </button>
+                                </div>
                             </div>
 
-                            {/* Batch Utilities */}
-                            <div className="grid grid-cols-2 gap-3">
-                                <button
-                                    onClick={async (e) => {
-                                        const btn = e.currentTarget;
-                                        btn.disabled = true;
-                                        try {
-                                            await testService.seedLogs(userId, 10);
-                                            await onRefreshProfile();
-                                            alert('BATCH SEED DONE');
-                                        } catch (err: any) {
-                                            alert(`ERR: ${err}`);
-                                        } finally {
-                                            btn.disabled = false;
-                                        }
-                                    }}
-                                    className="bg-dopa-blue/20 text-black border-4 border-black py-4 rounded-2xl font-black text-[10px] uppercase shadow-neo-sm active:translate-y-1 active:shadow-none transition-all"
-                                >
-                                    Seed 10 Logs 📦
-                                </button>
-                                <button
-                                    onClick={async (e) => {
-                                        const btn = e.currentTarget;
-                                        btn.disabled = true;
-                                        try {
-                                            const count = await testService.unlockAllAchievements(userId);
-                                            await onRefreshProfile();
-                                            alert(`UNLOCKED: ${count}`);
-                                        } catch (err: any) {
-                                            alert(`ERR: ${err}`);
-                                        } finally {
-                                            btn.disabled = false;
-                                        }
-                                    }}
-                                    className="bg-yellow-400/20 text-black border-4 border-black py-4 rounded-2xl font-black text-[10px] uppercase shadow-neo-sm active:translate-y-1 active:shadow-none transition-all"
-                                >
-                                    Awards 🏆
-                                </button>
-                                <button
-                                    onClick={async (e) => {
-                                        const btn = e.currentTarget;
-                                        btn.disabled = true;
-                                        try {
-                                            await testService.syncDefinitions();
-                                            alert('DEFINITIONS SYNCED 🔄');
-                                            window.dispatchEvent(new CustomEvent('force-refresh-achievements'));
-                                        } catch (err: any) {
-                                            alert(`ERR: ${err}`);
-                                        } finally {
-                                            btn.disabled = false;
-                                        }
-                                    }}
-                                    className="col-span-2 bg-dopa-cyan/20 text-black border-4 border-black py-3 rounded-2xl font-black text-[10px] uppercase shadow-neo-sm active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2"
-                                >
-                                    Sync Definitions 🔄
-                                </button>
+                            {/* ═══ 成就操作 ═══ */}
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-yellow-500 uppercase tracking-widest pl-1">{t.devConsole.achievementMgr}</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                        onClick={async (e) => {
+                                            const btn = e.currentTarget;
+                                            btn.disabled = true;
+                                            try {
+                                                const count = await testService.unlockAllAchievements(userId);
+                                                window.dispatchEvent(new CustomEvent('force-refresh-achievements'));
+                                                showToast(t.devConsole.unlockAllDone.replace('{count}', count));
+                                            } catch (err: any) { alert(`ERR: ${err}`); }
+                                            finally { btn.disabled = false; }
+                                        }}
+                                        className="bg-yellow-400/20 text-black border-4 border-black py-3 rounded-2xl font-black text-[10px] uppercase shadow-neo-sm active:translate-y-1 active:shadow-none transition-all"
+                                    >
+                                        {t.devConsole.unlockAll}
+                                    </button>
+                                    <button
+                                        onClick={async (e) => {
+                                            if (!confirm(t.devConsole.lockAllConfirm)) return;
+                                            const btn = e.currentTarget;
+                                            btn.disabled = true;
+                                            try {
+                                                await testService.lockAllAchievements(userId);
+                                                window.dispatchEvent(new CustomEvent('force-refresh-achievements'));
+                                                showToast(t.devConsole.lockAllDone);
+                                            } catch (err: any) { alert(`ERR: ${err}`); }
+                                            finally { btn.disabled = false; }
+                                        }}
+                                        className="bg-gray-200 text-black border-4 border-black py-3 rounded-2xl font-black text-[10px] uppercase shadow-neo-sm active:translate-y-1 active:shadow-none transition-all"
+                                    >
+                                        {t.devConsole.lockAll}
+                                    </button>
+                                </div>
+                                {/* 单独操作某个成就 */}
+                                <div className="bg-white border-4 border-black p-3 rounded-2xl space-y-2">
+                                    <select
+                                        value={devAchievementId}
+                                        onChange={e => setDevAchievementId(e.target.value)}
+                                        className="w-full border-2 border-black rounded-lg px-2 py-1.5 text-[10px] font-black bg-gray-50 outline-none"
+                                    >
+                                        {achievementDefinitions.map(d => (
+                                            <option key={d.id} value={d.id}>{d.title_zh} ({d.id})</option>
+                                        ))}
+                                    </select>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <button
+                                            onClick={async (e) => {
+                                                const btn = e.currentTarget;
+                                                btn.disabled = true;
+                                                try {
+                                                    await testService.unlockOneAchievement(userId, devAchievementId);
+                                                    window.dispatchEvent(new CustomEvent('force-refresh-achievements'));
+                                                    showToast(`${t.devConsole.unlockOneDone}: ${devAchievementId}`);
+                                                } catch (err: any) { alert(`ERR: ${err}`); }
+                                                finally { btn.disabled = false; }
+                                            }}
+                                            className="bg-dopa-lime/30 text-black border-2 border-black py-2 rounded-xl font-black text-[9px] uppercase active:translate-y-0.5 transition-all"
+                                        >
+                                            {t.devConsole.unlockOne}
+                                        </button>
+                                        <button
+                                            onClick={async (e) => {
+                                                const btn = e.currentTarget;
+                                                btn.disabled = true;
+                                                try {
+                                                    await testService.lockOneAchievement(userId, devAchievementId);
+                                                    window.dispatchEvent(new CustomEvent('force-refresh-achievements'));
+                                                    showToast(`${t.devConsole.lockOneDone}: ${devAchievementId}`);
+                                                } catch (err: any) { alert(`ERR: ${err}`); }
+                                                finally { btn.disabled = false; }
+                                            }}
+                                            className="bg-gray-100 text-black border-2 border-black py-2 rounded-xl font-black text-[9px] uppercase active:translate-y-0.5 transition-all"
+                                        >
+                                            {t.devConsole.lockOne}
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
 
-                            {/* Direct Injection Section */}
-                            <section className="space-y-4">
+                            {/* ═══ 记录操作 ═══ */}
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-blue-400 uppercase tracking-widest pl-1">{t.devConsole.logMgr}</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                        onClick={async (e) => {
+                                            const btn = e.currentTarget;
+                                            btn.disabled = true;
+                                            try {
+                                                await testService.seedLogs(userId, 10);
+                                                await onRefreshProfile();
+                                                showToast(t.devConsole.seedDone);
+                                            } catch (err: any) { alert(`ERR: ${err}`); }
+                                            finally { btn.disabled = false; }
+                                        }}
+                                        className="bg-dopa-blue/20 text-black border-4 border-black py-3 rounded-2xl font-black text-[10px] uppercase shadow-neo-sm active:translate-y-1 active:shadow-none transition-all"
+                                    >
+                                        {t.devConsole.seedRandom}
+                                    </button>
+                                    <button
+                                        onClick={async (e) => {
+                                            const btn = e.currentTarget;
+                                            btn.disabled = true;
+                                            try {
+                                                await testService.syncDefinitions();
+                                                window.dispatchEvent(new CustomEvent('force-refresh-achievements'));
+                                                showToast(t.devConsole.syncDone);
+                                            } catch (err: any) { alert(`ERR: ${err}`); }
+                                            finally { btn.disabled = false; }
+                                        }}
+                                        className="bg-dopa-cyan/20 text-black border-4 border-black py-3 rounded-2xl font-black text-[10px] uppercase shadow-neo-sm active:translate-y-1 active:shadow-none transition-all"
+                                    >
+                                        {t.devConsole.syncDef}
+                                    </button>
+                                </div>
+                                {/* 删除特定记录 */}
+                                <div className="bg-white border-4 border-black p-3 rounded-2xl space-y-2">
+                                    <label className="text-[9px] font-black text-gray-400 uppercase ml-1">{t.devConsole.deleteLog}</label>
+                                    <select
+                                        value={devLogId}
+                                        onChange={e => setDevLogId(e.target.value)}
+                                        className="w-full border-2 border-black rounded-lg px-2 py-1.5 text-[10px] font-black bg-gray-50 outline-none"
+                                    >
+                                        <option value="">{t.devConsole.selectLog}</option>
+                                        {historyLogs.slice(0, 50).map(log => (
+                                            <option key={log.id} value={log.id}>
+                                                {new Date(log.date).toLocaleString()} | B{log.bristolType} | {log.mood}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <button
+                                        onClick={async (e) => {
+                                            if (!devLogId) return;
+                                            if (!confirm(t.devConsole.deleteLogConfirm)) return;
+                                            const btn = e.currentTarget;
+                                            btn.disabled = true;
+                                            try {
+                                                await testService.deleteLog(devLogId);
+                                                await onRefreshProfile();
+                                                refreshLogs();
+                                                setDevLogId('');
+                                                showToast(t.devConsole.deleteLogDone);
+                                            } catch (err: any) { alert(`ERR: ${err}`); }
+                                            finally { btn.disabled = false; }
+                                        }}
+                                        disabled={!devLogId}
+                                        className={`w-full border-4 border-black py-2 rounded-xl font-black text-[10px] uppercase active:translate-y-0.5 transition-all ${devLogId ? 'bg-red-100 text-red-600 shadow-neo-sm' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
+                                    >
+                                        {t.devConsole.deleteLogBtn}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* ═══ 定向注入 ═══ */}
+                            <section className="space-y-2">
                                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-2 pl-1">
                                     <div className="w-1.5 h-1.5 rounded-full bg-dopa-pink animate-pulse"></div>
-                                    Direct Injection Matrix
+                                    {t.devConsole.injection}
                                 </label>
 
-                                <div className="bg-white border-4 border-black p-4 rounded-3xl shadow-neo-sm space-y-4">
+                                <div className="bg-white border-4 border-black p-4 rounded-3xl shadow-neo-sm space-y-3">
                                     <div className="grid grid-cols-2 gap-3">
                                         <div className="space-y-1">
                                             <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Days Shift</label>
@@ -955,7 +1105,7 @@ const Profile: React.FC<ProfileProps> = ({ onLogout, profile, userId, onRefreshP
 
                                     <div className="grid grid-cols-2 gap-2 text-[10px] font-black uppercase">
                                         <select value={customSeed.mood} onChange={e => setCustomSeed({ ...customSeed, mood: e.target.value })} className="border-2 border-black rounded-lg px-2 py-1.5 bg-gray-50 outline-none">
-                                            {['classic', 'zen', 'struggle', 'pain', 'nuclear', 'happy', 'party'].map(v => <option key={v} value={v}>VIBE: {v.toUpperCase()}</option>)}
+                                            {['classic', 'zen', 'struggle', 'pain', 'nuclear', 'happy', 'party', 'spray', 'spicy', 'ghost'].map(v => <option key={v} value={v}>VIBE: {v.toUpperCase()}</option>)}
                                         </select>
                                         <select value={customSeed.speed} onChange={e => setCustomSeed({ ...customSeed, speed: e.target.value })} className="border-2 border-black rounded-lg px-2 py-1.5 bg-gray-50 outline-none">
                                             {['sonic', 'normal', 'fast', 'slow'].map(v => <option key={v} value={v}>SPD: {v.toUpperCase()}</option>)}
@@ -964,7 +1114,7 @@ const Profile: React.FC<ProfileProps> = ({ onLogout, profile, userId, onRefreshP
                                             {['low', 'medium', 'high'].map(v => <option key={v} value={v}>QTY: {v.toUpperCase()}</option>)}
                                         </select>
                                         <select value={customSeed.color} onChange={e => setCustomSeed({ ...customSeed, color: e.target.value })} className="border-2 border-black rounded-lg px-2 py-1.5 bg-gray-50 outline-none">
-                                            {['brown', 'green', 'yellow', 'black', 'red', 'pale'].map(v => <option key={v} value={v}>CLR: {v.toUpperCase()}</option>)}
+                                            {['brown', 'green', 'yellow', 'black', 'red', 'pale', 'golden'].map(v => <option key={v} value={v}>CLR: {v.toUpperCase()}</option>)}
                                         </select>
                                     </div>
 
@@ -976,16 +1126,13 @@ const Profile: React.FC<ProfileProps> = ({ onLogout, profile, userId, onRefreshP
                                                 await testService.createCustomLog(userId, customSeed);
                                                 await onRefreshProfile();
                                                 window.dispatchEvent(new CustomEvent('force-refresh-achievements'));
-                                                alert('TELEMETRY INJECTED');
-                                            } catch (err: any) {
-                                                alert(`ERROR: ${err.message}`);
-                                            } finally {
-                                                btn.disabled = false;
-                                            }
+                                                showToast(t.devConsole.commitDone);
+                                            } catch (err: any) { alert(`ERROR: ${err.message}`); }
+                                            finally { btn.disabled = false; }
                                         }}
-                                        className="w-full bg-dopa-lime/20 border-4 border-black py-4 rounded-2xl font-black shadow-neo-sm active:shadow-none active:translate-y-1 transition-all uppercase tracking-widest text-sm"
+                                        className="w-full bg-dopa-lime/20 border-4 border-black py-3 rounded-2xl font-black shadow-neo-sm active:shadow-none active:translate-y-1 transition-all uppercase tracking-widest text-sm"
                                     >
-                                        Commit Record 🚀
+                                        {t.devConsole.commitRecord}
                                     </button>
                                 </div>
                             </section>
@@ -993,9 +1140,9 @@ const Profile: React.FC<ProfileProps> = ({ onLogout, profile, userId, onRefreshP
 
                         <button
                             onClick={() => setShowGodMode(false)}
-                            className="w-full bg-black text-white py-6 font-black text-xl uppercase active:bg-gray-900 transition-colors"
+                            className="w-full bg-black text-white py-5 font-black text-lg uppercase active:bg-gray-900 transition-colors"
                         >
-                            Exit Console
+                            {t.devConsole.exit}
                         </button>
                     </div>
                 </div>
