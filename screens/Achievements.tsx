@@ -187,7 +187,7 @@ const Achievements: React.FC<AchievementsProps> = ({ onNavigate, profile, userId
 
   const handleCopy = () => {
     if (selectedAchievement) {
-      const text = `${t.achievements.shareTitle}: ${selectedAchievement.title}! https://dopagut.app`;
+      const text = `${t.achievements.shareTitle}: ${selectedAchievement.title}! https://dopagut.top`;
       const textArea = document.createElement("textarea");
       textArea.value = text;
       document.body.appendChild(textArea);

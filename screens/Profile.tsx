@@ -243,7 +243,7 @@ const Profile: React.FC<ProfileProps> = ({ onLogout, profile, userId, onRefreshP
     };
 
     const handleCopy = () => {
-        const text = `https://dopagut.app`;
+        const text = `https://dopagut.top`;
 
         const textArea = document.createElement("textarea");
         textArea.value = text;
