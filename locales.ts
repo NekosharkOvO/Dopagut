@@ -73,6 +73,10 @@ export const zh = {
 
     mvp: "今日 MVP",
     legendary: "传说级",
+    epic: "史诗级",
+    great: "优秀",
+    normal: "普通",
+    tragic: "惨烈",
     output: "产出",
     type: "类型", // Simplified "Type"
     speed: "速度",
@@ -361,6 +365,10 @@ export const en = {
     questMode: "QUEST MODE",
     mvp: "TODAY'S MVP",
     legendary: "LEGENDARY",
+    epic: "EPIC",
+    great: "GREAT",
+    normal: "NORMAL",
+    tragic: "TRAGIC",
     output: "OUTPUT",
     type: "Type",
     speed: "SPEED",

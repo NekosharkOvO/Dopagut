@@ -93,6 +93,16 @@ const MvpTicket = ({ log, score, t }: { log: Log | null, score: number, t: any }
   const startTime = formatFullTime(log.date);
   const endTime = formatFullTime(new Date(new Date(log.date).getTime() + log.durationSeconds * 1000).toISOString());
 
+  // NOTE: 根据综合评分动态计算 MVP 评级标签和样式
+  const getRating = (s: number): { label: string; className: string } => {
+    if (s >= 85) return { label: t.dashboard.legendary, className: 'bg-dopa-pink text-white' };
+    if (s >= 65) return { label: t.dashboard.epic, className: 'bg-dopa-purple text-white' };
+    if (s >= 45) return { label: t.dashboard.great, className: 'bg-dopa-lime text-black' };
+    if (s >= 25) return { label: t.dashboard.normal, className: 'bg-gray-300 text-black' };
+    return { label: t.dashboard.tragic, className: 'bg-red-500 text-white' };
+  };
+  const rating = getRating(score);
+
   return (
     <div className="relative group perspective-1000">
       <div className="bg-white rounded-[1.5rem] border-4 border-black shadow-neo-lg overflow-hidden relative transform transition-transform hover:rotate-1">
@@ -161,8 +171,8 @@ const MvpTicket = ({ log, score, t }: { log: Log | null, score: number, t: any }
               <span className="bg-black text-white px-1.5 py-0.5 rounded leading-none">{endTime}</span>
             </div>
           </div>
-          <div className="text-[10px] font-black bg-dopa-pink text-white px-2 py-0.5 rounded border border-black transform rotate-1 uppercase">
-            {t.dashboard.legendary}
+          <div className={`text-[10px] font-black px-2 py-0.5 rounded border border-black transform rotate-1 uppercase ${rating.className}`}>
+            {rating.label}
           </div>
         </div>
       </div>

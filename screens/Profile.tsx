@@ -457,7 +457,7 @@ const Profile: React.FC<ProfileProps> = ({ onLogout, profile, userId, onRefreshP
                             <div className="bg-dopa-yellow p-3 rounded-xl border-4 border-black shadow-neo flex flex-col items-center text-center justify-between group neo-press h-32 relative overflow-hidden">
                                 <span className="text-[10px] font-bold uppercase tracking-wider bg-white border border-black px-1 rounded-sm z-10">{t.profile.maxZen}</span>
                                 <div className="flex-1 flex items-center justify-center z-10">
-                                    <span className="font-display text-2xl font-black leading-none">{profile?.max_zen || 0}<small className="text-sm">min</small></span>
+                                    <span className="font-display text-2xl font-black leading-none">{(profile?.max_zen || 0) > 0 ? `${profile?.max_zen}` : (profile?.total_drops ? '<1' : '0')}<small className="text-sm">min</small></span>
                                 </div>
                                 <span className="text-xs font-bold z-10">{t.profile.time}</span>
                                 <div className="absolute -bottom-4 -right-4 text-6xl opacity-20 rotate-12">🧘</div>
@@ -573,7 +573,7 @@ const Profile: React.FC<ProfileProps> = ({ onLogout, profile, userId, onRefreshP
                                 </div>
                                 <div className="bg-dopa-yellow rounded-xl border-2 border-black p-2 flex flex-col items-center">
                                     <span className="text-[10px] font-bold uppercase">{t.profile.zenLabel}</span>
-                                    <span className="text-xl font-black">{profile?.max_zen || 0}<small>m</small></span>
+                                    <span className="text-xl font-black">{(profile?.max_zen || 0) > 0 ? `${profile?.max_zen}` : (profile?.total_drops ? '<1' : '0')}<small>m</small></span>
                                 </div>
                                 <div className="bg-dopa-lime rounded-xl border-2 border-black p-2 flex flex-col items-center">
                                     <span className="text-[10px] font-bold uppercase">{t.profile.rankLabel}</span>
