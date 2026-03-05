@@ -122,6 +122,8 @@ const Profile: React.FC<ProfileProps> = ({ onLogout, profile, userId, onRefreshP
         if (isActive) {
             refreshLogs();
             achievementService.getUserAchievements(userId).then(setUserAchievements).catch(console.error);
+            // NOTE: 实时同步统计数据（beat_percentage 等），确保排名反映最新状态
+            profileService.syncStats(userId).then(() => onRefreshProfile()).catch(console.error);
         }
     }, [isActive, refreshLogs, userId]);
 

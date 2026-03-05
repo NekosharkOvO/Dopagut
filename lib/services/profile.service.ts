@@ -91,5 +91,14 @@ export const profileService = {
         const { data, error } = await Promise.race([rpcPromise, timeoutPromise]) as any;
         if (error) throw error;
         return (data || []) as Profile[];
+    },
+
+    /**
+     * 实时同步用户统计数据（total_drops / max_zen / beat_percentage 等）
+     * 每次打开个人页时调用，确保排名百分比等数据反映最新状态
+     */
+    async syncStats(userId: string): Promise<void> {
+        const { error } = await supabase.rpc('sync_user_stats', { target_user_id: userId });
+        if (error) console.error('syncStats failed:', error);
     }
 };

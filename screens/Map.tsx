@@ -333,7 +333,7 @@ const Map: React.FC<MapProps> = ({ onNavigate, profile, userId, t, isActive }) =
             }
         }
 
-        return users;
+        return users.sort((a, b) => b.score - a.score);
     }, [profile, userId, hasGroup, mates, myAchievements, lang, t]);
 
     // 随机气泡特效
