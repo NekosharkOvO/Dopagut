@@ -553,7 +553,7 @@ export const en = {
     selectRegion: "Select Region",
     locationSaved: "Location Updated!",
     about: "About",
-    aboutDesc: "DopaGut is a super fun App for logging your every \"battle\"!\n\nThanks for using it! This project is my VibeCoding side project. If you find it fun, come give it a Star on GitHub!",
+    aboutDesc: "May every release bring you peace.\n\nThanks for being here. This is a little something I built for fun with VibeCoding — if it brought you a smile, a Star on GitHub would mean the world ~",
     viewSource: "⭐ View Source Code",
     madeWith: "Made with ❤️ and 💩"
   },
