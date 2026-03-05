@@ -43,6 +43,7 @@ const Profile: React.FC<ProfileProps> = ({ onLogout, profile, userId, onRefreshP
     const [showCropModal, setShowCropModal] = useState(false);
     const [showLocation, setShowLocation] = useState(false);
     const [showGodMode, setShowGodMode] = useState(false);
+    const [showAbout, setShowAbout] = useState(false);
     // NOTE: 版本号连按计数器，用于隐蔽入口
     const tapCountRef = useRef(0);
     const tapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -734,6 +735,16 @@ const Profile: React.FC<ProfileProps> = ({ onLogout, profile, userId, onRefreshP
                                 </div>
                                 {t.settings.switchLang}
                             </button>
+
+                            <button
+                                onClick={() => { setShowSettings(false); setShowAbout(true); }}
+                                className="w-full bg-white border-4 border-black rounded-xl p-3 font-bold shadow-neo active:shadow-none active:translate-y-1 transition-all flex items-center gap-3 group"
+                            >
+                                <div className="w-8 h-8 rounded bg-dopa-orange border-2 border-black flex items-center justify-center">
+                                    <span className="material-icons-round text-sm text-white">info</span>
+                                </div>
+                                {t.settings.about}
+                            </button>
                             <div className="h-2 border-b-2 border-dashed border-gray-300"></div>
                             <button
                                 onClick={onLogout}
@@ -749,7 +760,36 @@ const Profile: React.FC<ProfileProps> = ({ onLogout, profile, userId, onRefreshP
                 </div>
             )}
 
-            {/* 5. Edit Name Modal */}
+            {/* 5. About Modal */}
+            {showAbout && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm animate-in zoom-in-95 duration-200" onClick={() => setShowAbout(false)}>
+                    <div className="bg-dopa-white w-full max-w-xs border-4 border-black rounded-[2rem] p-6 text-center shadow-neo-white relative overflow-hidden" onClick={e => e.stopPropagation()}>
+                        <div className="absolute top-0 left-0 w-full h-4 bg-dopa-orange border-b-4 border-black"></div>
+                        <div className="mt-4 mb-3">
+                            <span className="text-5xl">🚽</span>
+                        </div>
+                        <h2 className="text-2xl font-black uppercase mb-1">DopaGut</h2>
+                        <p className="text-[10px] font-bold text-gray-400 mb-4">v2.1 · AGPL-3.0</p>
+                        <p className="font-bold text-sm mb-5 whitespace-pre-wrap leading-snug text-gray-700">
+                            {t.settings.aboutDesc}
+                        </p>
+                        <a
+                            href="https://github.com/NekosharkOvO/Dopagut"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block w-full bg-black text-dopa-lime font-black py-3 rounded-xl border-4 border-black hover:bg-gray-900 transition-all mb-3 text-sm"
+                        >
+                            {t.settings.viewSource}
+                        </a>
+                        <button onClick={() => setShowAbout(false)} className="w-full bg-white text-black font-black py-3 rounded-xl border-4 border-black hover:bg-gray-50 transition-all text-sm">
+                            OK!
+                        </button>
+                        <p className="text-[10px] font-bold text-gray-300 mt-4">{t.settings.madeWith}</p>
+                    </div>
+                </div>
+            )}
+
+            {/* 6. Edit Name Modal */}
             {showEditName && (
                 <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
                     <div className="bg-white w-full max-w-xs rounded-2xl border-4 border-black p-4">

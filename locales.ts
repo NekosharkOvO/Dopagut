@@ -255,7 +255,11 @@ export const zh = {
     confirmCrop: "确认裁剪",
     selectCountry: "选择国家/地区",
     selectRegion: "选择省/州",
-    locationSaved: "位置已更新！"
+    locationSaved: "位置已更新！",
+    about: "关于",
+    aboutDesc: "DopaGut 是一个记录你每次“战斗”的超好玩 App！\n\n感谢你的使用，这个项目是我的 VibeCoding 自嚗小作品，如果你觉得有趣，欢迎来 GitHub 给个 Star 喵！",
+    viewSource: "⭐ 查看源代码",
+    madeWith: "用 ❤️ 和 💩 制作"
   },
   devConsole: {
     nukeZone: "☢️ 核弹区",
@@ -547,7 +551,11 @@ export const en = {
     confirmCrop: "Confirm Crop",
     selectCountry: "Select Country",
     selectRegion: "Select Region",
-    locationSaved: "Location Updated!"
+    locationSaved: "Location Updated!",
+    about: "About",
+    aboutDesc: "DopaGut is a super fun App for logging your every \"battle\"!\n\nThanks for using it! This project is my VibeCoding side project. If you find it fun, come give it a Star on GitHub!",
+    viewSource: "⭐ View Source Code",
+    madeWith: "Made with ❤️ and 💩"
   },
   devConsole: {
     nukeZone: "☢️ Nuke Zone",
