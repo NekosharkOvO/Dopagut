@@ -257,7 +257,7 @@ export const zh = {
     selectRegion: "选择省/州",
     locationSaved: "位置已更新！",
     about: "关于",
-    aboutDesc: "DopaGut 是一个记录你每次“战斗”的超好玩 App！\n\n感谢你的使用，这个项目是我的 VibeCoding 自嚗小作品，如果你觉得有趣，欢迎来 GitHub 给个 Star 喵！",
+    aboutDesc: "愿您排便通畅！\n\n感谢使用，这个项目是我的 VibeCoding 自娱自乐产物，觉得有趣的话，欢迎来 GitHub 给个 Star ~",
     viewSource: "⭐ 查看源代码",
     madeWith: "用 ❤️ 和 💩 制作"
   },
