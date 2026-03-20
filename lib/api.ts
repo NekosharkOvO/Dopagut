@@ -9,6 +9,7 @@ export * from './services/log.service';
 export * from './services/achievement.service';
 export * from './services/friend.service';
 export * from './services/test.service';
+export * from './services/pending-session.service';
 
 // 导出成就引擎，供特殊情况调用
 export * from './achievements/engine';

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { TrackerState, INITIAL_TRACKER_STATE } from '../types';
-import { logService } from '../lib/api';
+import { logService, pendingSessionService } from '../lib/api';
 
 interface TrackerProps {
    state: TrackerState;
@@ -117,7 +117,7 @@ export default function Tracker({ state, setState, userId, onRefreshProfile, t, 
       };
    }, [state.isRunning, state.startTime, state.endTime]);
 
-   const toggleTimer = () => {
+   const toggleTimer = async () => {
       if (state.isRunning) {
          const end = new Date();
          setState({
@@ -132,15 +132,29 @@ export default function Tracker({ state, setState, userId, onRefreshProfile, t, 
             requestAnimationFrame(() => setModalOpen(true));
          });
       } else {
+         const now = new Date();
          setState({
             ...state,
             isRunning: true,
-            startTime: new Date(),
+            startTime: now,
             endTime: null,
             showModal: false,
          });
          setModalOpen(false);
          setModalMounted(false);
+
+         // NOTE: 开始记录时写入 pending session，
+         // 确保页面被销毁后可以恢复
+         try {
+            await pendingSessionService.createSession(
+               userId,
+               now.toISOString(),
+               state.activeType
+            );
+         } catch (err) {
+            console.error('创建 pending session 失败:', err);
+            // 不阻塞主流程，即使 pending session 写入失败也允许继续记录
+         }
       }
    };
 
@@ -148,8 +162,14 @@ export default function Tracker({ state, setState, userId, onRefreshProfile, t, 
       setState({ ...state, [field]: value });
    };
 
-   const handleReset = () => {
+   const handleReset = async () => {
       setState(INITIAL_TRACKER_STATE);
+      // NOTE: 丢弃记录时同步删除 pending session
+      try {
+         await pendingSessionService.deleteAllSessions(userId);
+      } catch (err) {
+         console.error('删除 pending session 失败:', err);
+      }
    };
 
    /**
@@ -176,6 +196,13 @@ export default function Tracker({ state, setState, userId, onRefreshProfile, t, 
 
          // NOTE: 保存成功后刷新 profile 数据（更新 total_drops 等）
          await onRefreshProfile();
+
+         // NOTE: 保存成功后清理 pending session
+         try {
+            await pendingSessionService.deleteAllSessions(userId);
+         } catch (err) {
+            console.error('清理 pending session 失败:', err);
+         }
 
          showToast(t.alerts.saveSuccess || '记录成功！✨');
          // NOTE: 先播放滑出动画，再重置状态

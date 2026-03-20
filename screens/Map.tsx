@@ -302,20 +302,22 @@ const Map: React.FC<MapProps> = ({ onNavigate, profile, userId, t, isActive }) =
 
         // NOTE: 碰撞分离 —— 迭代斥力算法
         // 当两个用户节点屏幕距离 < MIN_GAP 时互相推离，避免头像和昵称标签重叠
-        const MIN_GAP = 90; // 头像直径(64) + 昵称标签高度 + 间距
-        const ITERATIONS = 5; // 迭代次数，越多越精确但也越慢
+        // FIXME: 旧版本外层循环从 i=1 开始，导致当前用户（index 0）不参与碰撞检测
+        const MIN_GAP = 110; // 头像直径(64) + 昵称标签高度 + 合理间距
+        const ITERATIONS = 8; // 迭代次数，密集场景需要更多轮次才能完全分离
         for (let iter = 0; iter < ITERATIONS; iter++) {
-            for (let i = 1; i < users.length; i++) {
-                // 跳过本人节点（永远固定在 0,0）
+            for (let i = 0; i < users.length; i++) {
                 for (let j = i + 1; j < users.length; j++) {
                     const dx = users[j].x - users[i].x;
                     const dy = users[j].y - users[i].y;
                     const dist = Math.sqrt(dx * dx + dy * dy);
-                    if (dist < MIN_GAP && dist > 0) {
-                        const overlap = (MIN_GAP - dist) / 2;
-                        const nx = dx / dist;
-                        const ny = dy / dist;
-                        // 如果其中一个是本人(i===0已跳过)，只移动另一个
+                    if (dist < MIN_GAP) {
+                        // NOTE: dist === 0 时给一个随机微小偏移，避免两个完全重合的节点无法分离
+                        const safeDist = dist > 0.1 ? dist : 0.1;
+                        const overlap = (MIN_GAP - safeDist) / 2;
+                        const nx = dist > 0.1 ? dx / safeDist : (Math.random() - 0.5);
+                        const ny = dist > 0.1 ? dy / safeDist : (Math.random() - 0.5);
+                        // 当前用户固定在 (0,0)，只推开另一方
                         if (users[i].isCurrentUser) {
                             users[j].x += nx * overlap * 2;
                             users[j].y += ny * overlap * 2;

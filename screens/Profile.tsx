@@ -363,6 +363,14 @@ const Profile: React.FC<ProfileProps> = ({ onLogout, profile, userId, onRefreshP
 
     return (
         <div className="flex-1 flex flex-col items-center justify-center bg-dopa-purple hide-scrollbar overflow-y-auto pb-32 relative h-full">
+            {/* NOTE: 文件选择器置于组件顶层，确保不论设置弹窗是否打开都可触发 */}
+            <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={onFileSelect}
+            />
             {/* 置顶 Toast：带滑入滑出动画与状态感知 */}
             {toastPhase && (
                 <div
@@ -424,12 +432,20 @@ const Profile: React.FC<ProfileProps> = ({ onLogout, profile, userId, onRefreshP
 
                     <section className="flex flex-col items-center pt-6 pb-8 px-4">
                         <div className="relative mb-4">
-                            <div className="w-32 h-32 rounded-full border-4 border-black bg-white overflow-hidden shadow-neo relative z-10">
+                            {/* NOTE: 点击头像直接触发文件选择器，比从设置菜单进入更符合交互直觉 */}
+                            <div
+                                className="w-32 h-32 rounded-full border-4 border-black bg-white overflow-hidden shadow-neo relative z-10 cursor-pointer group"
+                                onClick={() => fileInputRef.current?.click()}
+                            >
                                 {profile?.avatar_url ? (
                                     <img src={profile.avatar_url} alt="Profile" className="w-full h-full object-cover" crossOrigin="anonymous" />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center text-6xl bg-dopa-cyan">💩</div>
                                 )}
+                                {/* 编辑图标覆层，悬浮/触摸时显示 */}
+                                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity duration-200">
+                                    <span className="material-icons-round text-white text-3xl">add_a_photo</span>
+                                </div>
                             </div>
                             <div
                                 className="absolute -bottom-2 -right-4 bg-dopa-purple text-white font-display text-xs font-black px-3 py-1 border-2 border-black shadow-neo-sm transform rotate-6 z-20"
@@ -438,12 +454,22 @@ const Profile: React.FC<ProfileProps> = ({ onLogout, profile, userId, onRefreshP
                             </div>
                             <div className="absolute -top-2 -left-2 text-4xl animate-bounce z-20">👑</div>
                         </div>
-                        <h2 className="text-2xl font-black text-black stroke-black drop-shadow-[2px_2px_0_rgba(255,255,255,1)] mb-1">
+                        {/* NOTE: 点击昵称直接打开改名弹窗 */}
+                        <h2
+                            className="text-2xl font-black text-black stroke-black drop-shadow-[2px_2px_0_rgba(255,255,255,1)] mb-1 cursor-pointer group flex items-center gap-1"
+                            onClick={() => setShowEditName(true)}
+                        >
                             {profile?.name || '???'}
+                            <span className="material-icons-round text-base text-gray-400 opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity">edit</span>
                         </h2>
 
-                        <div className="bg-black text-dopa-lime px-3 py-1 font-display text-sm font-black border-2 border-white rotate-1 shadow-sm">
+                        {/* NOTE: 点击地点直接打开位置选择器 */}
+                        <div
+                            className="bg-black text-dopa-lime px-3 py-1 font-display text-sm font-black border-2 border-white rotate-1 shadow-sm cursor-pointer group flex items-center gap-1"
+                            onClick={handleOpenLocation}
+                        >
                             {displayLocation || t.profile.unknownLocation}
+                            <span className="material-icons-round text-xs text-dopa-lime/60 opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity">edit</span>
                         </div>
                     </section>
 
@@ -706,13 +732,6 @@ const Profile: React.FC<ProfileProps> = ({ onLogout, profile, userId, onRefreshP
                             </button>
 
                             <div className="relative">
-                                <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    accept="image/*"
-                                    className="hidden"
-                                    onChange={onFileSelect}
-                                />
                                 <button onClick={() => fileInputRef.current?.click()} className="w-full bg-white border-4 border-black rounded-xl p-3 font-bold shadow-neo active:shadow-none active:translate-y-1 transition-all flex items-center gap-3 group">
                                     <div className="w-8 h-8 rounded bg-dopa-pink border-2 border-black flex items-center justify-center">
                                         <span className="material-icons-round text-sm">add_a_photo</span>

@@ -9,7 +9,10 @@ import BottomNav from './components/BottomNav';
 import Auth from './screens/Auth';
 import { AuthProvider, useAuth } from './contexts/auth-context';
 import AchievementToast from './components/AchievementToast';
+import PendingSessionModal from './components/PendingSessionModal';
 import { useOnlineStatus } from './hooks/use-online-status';
+import { pendingSessionService, logService } from './lib/api';
+import type { DbPendingSession } from './lib/services/pending-session.service';
 
 // NOTE: 国际化资源从 TS 文件导入
 import { zh, en } from './locales.ts';
@@ -24,6 +27,9 @@ const AppContent: React.FC = () => {
   // App 状态
   const [activeTab, setActiveTab] = useState<Tab>(Tab.Tracker);
   const [trackerState, setTrackerState] = useState<TrackerState>(INITIAL_TRACKER_STATE);
+
+  // 未完成记录会话状态
+  const [pendingSession, setPendingSession] = useState<DbPendingSession | null>(null);
 
   // 语言状态
   const [lang, setLang] = useState<'zh' | 'en'>('zh');
@@ -46,6 +52,24 @@ const AppContent: React.FC = () => {
     return () => window.removeEventListener('navigate-tab', handleNavigateTab);
   }, []);
 
+  // NOTE: 登录后检测是否有未完成的 pending session
+  useEffect(() => {
+    if (!user || !profile) return;
+
+    const checkPendingSession = async () => {
+      try {
+        const session = await pendingSessionService.getActiveSession(user.id);
+        if (session) {
+          setPendingSession(session);
+        }
+      } catch (err) {
+        console.error('检测 pending session 失败:', err);
+      }
+    };
+
+    checkPendingSession();
+  }, [user, profile]);
+
   const handleLogin = async (email: string, password: string) => {
     await signIn(email, password);
     setActiveTab(Tab.Tracker);
@@ -59,6 +83,87 @@ const AppContent: React.FC = () => {
   const handleLogout = async () => {
     await signOut();
     setActiveTab(Tab.Tracker);
+  };
+
+  // =============================================
+  // Pending Session 恢复回调
+  // =============================================
+
+  /**
+   * 用户选择「继续记录」：恢复到计时状态
+   * NOTE: 计时器从 pending session 的 started_at 开始计算
+   */
+  const handlePendingResume = () => {
+    if (!pendingSession) return;
+    setTrackerState({
+      ...INITIAL_TRACKER_STATE,
+      isRunning: true,
+      startTime: new Date(pendingSession.started_at),
+      activeType: pendingSession.mood || 'classic',
+    });
+    setActiveTab(Tab.Tracker);
+    setPendingSession(null);
+  };
+
+  /**
+   * 用户选择「放弃」：删除 pending session
+   */
+  const handlePendingDiscard = async () => {
+    if (!pendingSession) return;
+    try {
+      await pendingSessionService.deleteSession(pendingSession.id);
+    } catch (err) {
+      console.error('删除 pending session 失败:', err);
+    }
+    setPendingSession(null);
+  };
+
+  /**
+   * 用户选择「补录」：根据用户填写的信息直接写入 logs 表
+   * NOTE: endTime = startedAt + durationMinutes
+   */
+  const handlePendingBackfill = async (
+    durationMinutes: number,
+    mood: string,
+    bristolType: number,
+    color: string,
+    amount: string
+  ) => {
+    if (!pendingSession || !user) return;
+
+    const startTime = new Date(pendingSession.started_at);
+    const durationSeconds = durationMinutes * 60;
+
+    // 根据时长推断速度
+    let speed = 'normal';
+    if (durationSeconds < 60) speed = 'sonic';
+    else if (durationSeconds < 300) speed = 'fast';
+    else if (durationSeconds >= 600) speed = 'slow';
+
+    // 根据 Bristol 推断形状
+    const shapes = ['', 'lumpy', 'lumpy', 'sausage', 'perfect', 'soft', 'mushy', 'liquid'];
+    const shape = shapes[bristolType] || 'unknown';
+
+    try {
+      await logService.createLog(user.id, {
+        date: startTime.toISOString(),
+        durationSeconds,
+        bristolType,
+        shape,
+        color,
+        mood,
+        speed,
+        amount,
+      });
+
+      await pendingSessionService.deleteSession(pendingSession.id);
+      await refreshProfile();
+    } catch (err) {
+      console.error('补录失败:', err);
+      alert('补录失败，请重试');
+    }
+
+    setPendingSession(null);
   };
 
   // 加载中显示品牌 loading
@@ -170,6 +275,21 @@ const AppContent: React.FC = () => {
 
       {/* 全局成就解锁提醒 */}
       <AchievementToast />
+
+      {/* 未完成记录恢复弹窗 */}
+      {pendingSession && (
+        <PendingSessionModal
+          session={{
+            id: pendingSession.id,
+            startedAt: pendingSession.started_at,
+            mood: pendingSession.mood,
+          }}
+          onResume={handlePendingResume}
+          onDiscard={handlePendingDiscard}
+          onBackfill={handlePendingBackfill}
+          t={t}
+        />
+      )}
     </div>
   );
 };
