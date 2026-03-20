@@ -456,20 +456,21 @@ const Profile: React.FC<ProfileProps> = ({ onLogout, profile, userId, onRefreshP
                         </div>
                         {/* NOTE: 点击昵称直接打开改名弹窗 */}
                         <h2
-                            className="text-2xl font-black text-black stroke-black drop-shadow-[2px_2px_0_rgba(255,255,255,1)] mb-1 cursor-pointer group flex items-center gap-1"
+                            className="text-2xl font-black text-black stroke-black drop-shadow-[2px_2px_0_rgba(255,255,255,1)] mb-1 cursor-pointer group relative"
                             onClick={() => setShowEditName(true)}
                         >
                             {profile?.name || '???'}
-                            <span className="material-icons-round text-base text-gray-400 opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity">edit</span>
+                            <span className="material-icons-round text-base text-gray-400 opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity absolute -right-5 top-1/2 -translate-y-1/2">edit</span>
                         </h2>
 
                         {/* NOTE: 点击地点直接打开位置选择器 */}
                         <div
-                            className="bg-black text-dopa-lime px-3 py-1 font-display text-sm font-black border-2 border-white rotate-1 shadow-sm cursor-pointer group flex items-center gap-1"
+                            className="bg-black/90 text-white px-4 py-1.5 text-sm font-black rounded-full border-2 border-black shadow-neo-sm cursor-pointer group relative flex items-center gap-1.5 mt-1"
                             onClick={handleOpenLocation}
                         >
+                            <span className="material-icons-round text-sm text-dopa-lime">place</span>
                             {displayLocation || t.profile.unknownLocation}
-                            <span className="material-icons-round text-xs text-dopa-lime/60 opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity">edit</span>
+                            <span className="material-icons-round text-xs text-white/40 opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity absolute -right-5 top-1/2 -translate-y-1/2">edit</span>
                         </div>
                     </section>
 
@@ -593,7 +594,7 @@ const Profile: React.FC<ProfileProps> = ({ onLogout, profile, userId, onRefreshP
                                     )}
                                 </div>
                                 <h2 className="text-4xl font-black text-white stroke-black drop-shadow-[2px_2px_0_#000] mb-2">{profile?.name || '???'}</h2>
-                                <div className="bg-black text-dopa-lime px-4 py-1 text-sm font-bold border-2 border-white rounded-lg">{displayLocation || t.profile.unknownLocation}</div>
+                                <div className="bg-black/90 text-white px-4 py-1.5 text-sm font-bold border-2 border-black rounded-full flex items-center gap-1.5"><span className="material-icons-round text-sm text-dopa-lime">place</span>{displayLocation || t.profile.unknownLocation}</div>
                             </div>
                             <div className="grid grid-cols-3 gap-2 mb-6">
                                 <div className="bg-dopa-cyan rounded-xl border-2 border-black p-2 flex flex-col items-center">
