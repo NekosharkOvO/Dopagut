@@ -622,14 +622,14 @@ export default function Tracker({ state, setState, userId, onRefreshProfile, t, 
                      ) : (
                         <div className="bg-red-50 border-4 border-red-400 rounded-2xl p-4 flex flex-col gap-3 animate-in zoom-in-95 duration-200">
                            <p className="text-sm font-black text-red-600 text-center uppercase">
-                              ⚠️ 确定要丢弃这次战绩吗？
+                              {t.tracker.discardConfirmMsg}
                            </p>
                            <div className="flex gap-3">
                               <button
                                  onClick={() => setShowDiscardConfirm(false)}
                                  className="flex-1 py-2 rounded-xl font-black border-2 border-black bg-white text-black text-xs uppercase"
                               >
-                                 点错了
+                                 {t.tracker.discardCancel}
                               </button>
                               <button
                                  onClick={() => {
@@ -638,7 +638,7 @@ export default function Tracker({ state, setState, userId, onRefreshProfile, t, 
                                  }}
                                  className="flex-1 py-2 rounded-xl font-black border-2 border-red-500 bg-red-500 text-white text-xs uppercase shadow-sm"
                               >
-                                 确定丢弃
+                                 {t.tracker.discardConfirm}
                               </button>
                            </div>
                         </div>
