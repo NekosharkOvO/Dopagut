@@ -77,6 +77,20 @@ export default function Tracker({ state, setState, userId, onRefreshProfile, t, 
    const [modalMounted, setModalMounted] = useState(false);
    const [modalOpen, setModalOpen] = useState(false);
 
+   // NOTE: 时间异常检测弹窗状态
+   // showTimeWarning: 是否显示时间异常警告弹窗
+   // timeEditMode: 是否进入时间编辑模式
+   // editedDurationMinutes: 用户手动调整后的持续分钟数
+   const [showTimeWarning, setShowTimeWarning] = useState(false);
+   const [timeEditMode, setTimeEditMode] = useState(false);
+   const [editedDurationSeconds, setEditedDurationSeconds] = useState(0);
+
+   // NOTE: 放弃记录的二次确认状态
+   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+
+   // NOTE: 15 分钟阈值，超过此时间弹出异常提示
+   const TIME_WARNING_THRESHOLD_SECONDS = 15 * 60;
+
    const showToast = (msg: string) => {
       setToast({ msg, phase: 'in' });
       setTimeout(() => {
@@ -118,8 +132,11 @@ export default function Tracker({ state, setState, userId, onRefreshProfile, t, 
    }, [state.isRunning, state.startTime, state.endTime]);
 
    const toggleTimer = async () => {
+      // CASE 1: 正在运行 -> 停止并弹窗
       if (state.isRunning) {
          const end = new Date();
+         const durationSeconds = Math.floor((end.getTime() - state.startTime!.getTime()) / 1000);
+
          setState({
             ...state,
             isRunning: false,
@@ -131,7 +148,24 @@ export default function Tracker({ state, setState, userId, onRefreshProfile, t, 
          requestAnimationFrame(() => {
             requestAnimationFrame(() => setModalOpen(true));
          });
-      } else {
+
+         // NOTE: 超过阈值时，在战绩 Modal 弹出的同时叠加时间异常弹窗
+         if (durationSeconds > TIME_WARNING_THRESHOLD_SECONDS) {
+            setEditedDurationSeconds(durationSeconds);
+            setTimeEditMode(false);
+            setShowTimeWarning(true);
+         }
+      }
+      // CASE 2: 已结束但未提交 -> 仅唤起弹窗
+      else if (state.endTime) {
+         setState({ ...state, showModal: true });
+         setModalMounted(true);
+         requestAnimationFrame(() => {
+            requestAnimationFrame(() => setModalOpen(true));
+         });
+      }
+      // CASE 3: 初始状态 -> 开始记录
+      else {
          const now = new Date();
          setState({
             ...state,
@@ -163,25 +197,29 @@ export default function Tracker({ state, setState, userId, onRefreshProfile, t, 
    };
 
    const handleReset = async () => {
-      setState(INITIAL_TRACKER_STATE);
-      // NOTE: 丢弃记录时同步删除 pending session
+      // NOTE: 必须先删除数据库记录，再重置本地状态。
+      // 否则本地状态先变为 null 会触发 App.tsx 的自动检测逻辑，导致弹窗误报。
       try {
          await pendingSessionService.deleteAllSessions(userId);
       } catch (err) {
          console.error('删除 pending session 失败:', err);
       }
+      setState(INITIAL_TRACKER_STATE);
+      setShowDiscardConfirm(false);
    };
 
    /**
-    * 保存记录到 Supabase
-    * 替代原来的 mock handleReset
+    * 实际执行保存逻辑
+    * 支持使用修改后的结束时间覆盖原始记录
+    * @param overrideEndTime 可选，用户手动修改后的结束时间
     */
-   const handleSave = async () => {
+   const executeSave = async (overrideEndTime?: Date) => {
       if (!state.startTime || !state.endTime) return;
 
+      const effectiveEndTime = overrideEndTime || state.endTime;
       setSaving(true);
       try {
-         const durationSeconds = Math.floor((state.endTime.getTime() - state.startTime.getTime()) / 1000);
+         const durationSeconds = Math.floor((effectiveEndTime.getTime() - state.startTime.getTime()) / 1000);
 
          await logService.createLog(userId, {
             date: state.startTime.toISOString(),
@@ -206,6 +244,8 @@ export default function Tracker({ state, setState, userId, onRefreshProfile, t, 
 
          showToast(t.alerts.saveSuccess || '记录成功！✨');
          // NOTE: 先播放滑出动画，再重置状态
+         setShowTimeWarning(false);
+         setTimeEditMode(false);
          setModalOpen(false);
          setTimeout(() => {
             setModalMounted(false);
@@ -217,6 +257,29 @@ export default function Tracker({ state, setState, userId, onRefreshProfile, t, 
       } finally {
          setSaving(false);
       }
+   };
+
+   /**
+    * 保存入口：直接执行保存
+    * 时间异常检测已提前到 toggleTimer（点击结束投弹时）
+    */
+   const handleSave = () => {
+      executeSave();
+   };
+
+   /**
+    * 用户在时间异常弹窗确认修改
+    * 仅更新状态，不提交，让用户继续在详情页编辑其他信息
+    */
+   const handleConfirmTimeEdit = () => {
+      if (!state.startTime) return;
+
+      const newEndTime = new Date(state.startTime.getTime() + editedDurationSeconds * 1000);
+      setState({
+         ...state,
+         endTime: newEndTime
+      });
+      setShowTimeWarning(false);
    };
 
    const formatDuration = (seconds: number) => {
@@ -280,11 +343,6 @@ export default function Tracker({ state, setState, userId, onRefreshProfile, t, 
                <div className="bg-dopa-yellow px-4 py-1 border-2 border-black shadow-neo-sm transform -rotate-2 z-20">
                   <h1 className="text-2xl font-black tracking-tight text-black uppercase">{t.tracker.title}</h1>
                </div>
-               {!state.isRunning && state.endTime && !state.showModal && (
-                  <button onClick={handleReset} className="absolute right-5 top-8 text-xs font-bold bg-dopa-pink text-white px-2 py-1 rounded border-2 border-black z-30">
-                     {t.tracker.discard}
-                  </button>
-               )}
             </header>
 
             {/* Timer Section */}
@@ -293,10 +351,12 @@ export default function Tracker({ state, setState, userId, onRefreshProfile, t, 
                   <button
                      onClick={toggleTimer}
                      className={`relative w-64 h-64 rounded-full border-4 border-black shadow-neo active:shadow-none active:translate-x-1 active:translate-y-1 transition-all flex flex-col items-center justify-center z-10 neo-press
-                    ${state.isRunning ? 'bg-dopa-pink animate-pulse' : 'bg-dopa-yellow'}
+                    ${state.isRunning ? 'bg-dopa-pink animate-pulse' : state.endTime ? 'bg-dopa-pink' : 'bg-dopa-yellow'}
                   `}
                   >
-                     {state.isRunning && <div className="absolute inset-3 rounded-full border-4 border-black border-dashed animate-[spin_4s_linear_infinite] opacity-20 pointer-events-none"></div>}
+                     {(state.isRunning || state.endTime) && (
+                        <div className={`absolute inset-3 rounded-full border-4 border-black border-dashed opacity-20 pointer-events-none ${state.isRunning ? 'animate-[spin_4s_linear_infinite]' : ''}`}></div>
+                     )}
 
                      <span
                         className="text-black font-display text-7xl tracking-widest font-black z-30 relative"
@@ -308,8 +368,8 @@ export default function Tracker({ state, setState, userId, onRefreshProfile, t, 
                         {formatDuration(elapsedSeconds)}
                      </span>
 
-                     <span className={`text-xl font-black px-6 py-2 mt-2 -rotate-2 rounded-md z-20 border-2 border-black shadow-sm uppercase ${state.isRunning ? 'bg-white text-black' : 'bg-black text-white'}`}>
-                        {state.isRunning ? t.tracker.end : t.tracker.start}
+                     <span className={`text-xl font-black px-6 py-2 mt-2 -rotate-2 rounded-md z-20 border-2 border-black shadow-sm uppercase ${state.isRunning ? 'bg-white text-black' : state.endTime ? 'bg-black text-white' : 'bg-black text-white'}`}>
+                        {state.isRunning ? t.tracker.end : state.endTime ? t.tracker.resume : t.tracker.start}
                      </span>
 
                      {state.isRunning && (
@@ -324,19 +384,15 @@ export default function Tracker({ state, setState, userId, onRefreshProfile, t, 
                   </div>
                </div>
 
+               {/* 下方编辑指引：使用绝对定位，不影响主按钮布局 */}
                {!state.isRunning && state.endTime && !state.showModal && (
-                  <button onClick={() => {
-                     setState({ ...state, showModal: true });
-                     setModalMounted(true);
-                     requestAnimationFrame(() => {
-                        requestAnimationFrame(() => setModalOpen(true));
-                     });
-                  }} className="mt-8 bg-black text-white px-6 py-3 rounded-xl font-black border-4 border-transparent hover:border-dopa-lime transition-all flex items-center gap-2 animate-bounce z-20">
-                     <span className="material-icons-round">edit</span>
-                     {t.tracker.resume}
-                  </button>
+                  <div className="absolute bottom-10 flex flex-col items-center gap-1 animate-bounce pointer-events-none">
+                     <span className="material-icons-round text-3xl">arrow_upward</span>
+                     <span className="font-black text-xs uppercase tracking-tighter">
+                        {t.tracker.resume}
+                     </span>
+                  </div>
                )}
-
             </section>
 
             {/* Quick Status Selection */}
@@ -539,37 +595,234 @@ export default function Tracker({ state, setState, userId, onRefreshProfile, t, 
                   </div>
 
                   {/* Actions */}
-                  <div className="p-4 border-t-4 border-black bg-gray-50 flex gap-3 shrink-0 pb-8 sm:pb-4">
-                     <button onClick={() => {
-                        // NOTE: 丢弃按钮也走滑出动画
-                        setModalOpen(false);
-                        setTimeout(() => {
-                           setModalMounted(false);
-                           handleReset();
-                        }, 300);
-                     }} className="flex-1 py-3 rounded-xl font-black border-4 border-black bg-white text-black shadow-neo hover:shadow-none hover:translate-y-0.5 transition-all uppercase">
-                        {t.tracker.discardAction}
-                     </button>
-                     <button
-                        onClick={handleSave}
-                        disabled={saving}
-                        className="flex-[2] py-3 rounded-xl font-black border-4 border-black bg-dopa-lime text-black shadow-neo hover:shadow-none hover:translate-y-0.5 transition-all flex items-center justify-center gap-2 uppercase disabled:opacity-50"
-                     >
-                        <span className="material-icons-round">save</span>
-                        {saving ? (
-                           <div className="flex gap-1 items-center h-5 px-4">
-                              <span className="w-1.5 h-1.5 bg-black rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-                              <span className="w-1.5 h-1.5 bg-black rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-                              <span className="w-1.5 h-1.5 bg-black rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                  <div className="p-4 border-t-4 border-black bg-gray-50 shrink-0 pb-8 sm:pb-4 space-y-3">
+                     {!showDiscardConfirm ? (
+                        <div className="flex gap-3">
+                           <button
+                              onClick={() => setShowDiscardConfirm(true)}
+                              className="flex-1 py-3 rounded-xl font-black border-4 border-black bg-white text-red-500 shadow-neo hover:shadow-none hover:translate-y-0.5 transition-all uppercase"
+                           >
+                              {t.tracker.discardAction}
+                           </button>
+                           <button
+                              onClick={handleSave}
+                              disabled={saving}
+                              className="flex-[2] py-3 rounded-xl font-black border-4 border-black bg-dopa-lime text-black shadow-neo hover:shadow-none hover:translate-y-0.5 transition-all flex items-center justify-center gap-2 uppercase disabled:opacity-50"
+                           >
+                              <span className="material-icons-round">save</span>
+                              {saving ? (
+                                 <div className="flex gap-1 items-center h-5 px-4">
+                                    <span className="w-1.5 h-1.5 bg-black rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                                    <span className="w-1.5 h-1.5 bg-black rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                                    <span className="w-1.5 h-1.5 bg-black rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                                 </div>
+                              ) : t.tracker.saveAction}
+                           </button>
+                        </div>
+                     ) : (
+                        <div className="bg-red-50 border-4 border-red-400 rounded-2xl p-4 flex flex-col gap-3 animate-in zoom-in-95 duration-200">
+                           <p className="text-sm font-black text-red-600 text-center uppercase">
+                              ⚠️ 确定要丢弃这次战绩吗？
+                           </p>
+                           <div className="flex gap-3">
+                              <button
+                                 onClick={() => setShowDiscardConfirm(false)}
+                                 className="flex-1 py-2 rounded-xl font-black border-2 border-black bg-white text-black text-xs uppercase"
+                              >
+                                 点错了
+                              </button>
+                              <button
+                                 onClick={() => {
+                                    setModalOpen(false);
+                                    setTimeout(handleReset, 300);
+                                 }}
+                                 className="flex-1 py-2 rounded-xl font-black border-2 border-red-500 bg-red-500 text-white text-xs uppercase shadow-sm"
+                              >
+                                 确定丢弃
+                              </button>
                            </div>
-                        ) : t.tracker.saveAction}
-                     </button>
+                        </div>
+                     )}
                   </div>
 
                </div>
             </div>
          )}
 
+         {/* NOTE: 时间异常检测弹窗 — 覆盖在 Save Modal 之上 */}
+         {showTimeWarning && (
+            <div
+               className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+               style={{
+                  backgroundColor: 'rgba(0,0,0,0.85)',
+                  backdropFilter: 'blur(8px)',
+               }}
+            >
+               <div
+                  className="bg-white w-full max-w-sm rounded-[2rem] border-4 border-black shadow-neo-lg overflow-hidden"
+                  style={{
+                     animation: 'bounceIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                  }}
+               >
+                  {/* 弹窗标题 */}
+                  <header className="bg-dopa-orange border-b-4 border-black p-4 flex items-center gap-3">
+                     <div className="w-12 h-12 bg-white rounded-full border-3 border-black flex items-center justify-center text-2xl shadow-neo-sm">
+                        ⏰
+                     </div>
+                     <h2 className="text-xl font-black uppercase transform -rotate-1 flex-1">{t.tracker.timeWarning.title}</h2>
+                  </header>
+
+                  <div className="p-5 space-y-4">
+                     {!timeEditMode ? (
+                        <>
+                           {/* 警告模式：显示异常信息和两个操作按钮 */}
+                           <div className="bg-dopa-yellow/30 border-3 border-black rounded-xl p-4 text-center">
+                              <div className="text-5xl mb-3">🤔</div>
+                              <p className="font-bold text-lg whitespace-pre-line leading-relaxed">
+                                 {t.tracker.timeWarning.description}
+                              </p>
+                              <div className="mt-3 bg-black text-dopa-lime px-4 py-2 rounded-lg inline-block">
+                                 <span className="font-display text-2xl font-black">{formatDuration(elapsedSeconds)}</span>
+                              </div>
+                           </div>
+
+                           <div className="space-y-3">
+                              <button
+                                 onClick={() => setTimeEditMode(true)}
+                                 className="w-full py-3 rounded-xl font-black border-4 border-black bg-dopa-cyan text-black shadow-neo hover:shadow-none hover:translate-y-0.5 transition-all flex items-center justify-center gap-2 uppercase neo-press"
+                              >
+                                 <span className="material-icons-round">edit</span>
+                                 {t.tracker.timeWarning.editBtn}
+                              </button>
+                              <button
+                                 onClick={() => {
+                                    setShowTimeWarning(false);
+                                    // 不直接提交，只是关闭弹窗，保留原始时间
+                                 }}
+                                 className="w-full py-3 rounded-xl font-black border-4 border-black bg-white text-black shadow-neo hover:shadow-none hover:translate-y-0.5 transition-all flex items-center justify-center gap-2 uppercase neo-press"
+                              >
+                                 <span className="material-icons-round">check</span>
+                                 {t.tracker.timeWarning.keepBtn}
+                              </button>
+                           </div>
+                        </>
+                     ) : (
+                        <>
+                           {/* 编辑模式：让用户手动调整持续时间 */}
+                           <div className="bg-gray-100 border-3 border-black rounded-xl p-4">
+                              <h3 className="font-black text-lg mb-4 flex items-center gap-2 uppercase">
+                                 <span className="material-icons-round">timer</span>
+                                 {t.tracker.timeWarning.editTitle}
+                              </h3>
+
+                              {/* 持续时间滑块 + 可编辑输入 */}
+                              <div className="space-y-3">
+                                 <div className="flex justify-between items-center">
+                                    <span className="text-sm font-bold text-gray-600 uppercase">{t.tracker.timeWarning.durationLabel}</span>
+                                    <div className="bg-black text-dopa-lime px-3 py-1 rounded-lg flex items-center gap-1">
+                                       {editedDurationSeconds > 1800 ? (
+                                          <span className="font-display text-xl font-black">&gt;30</span>
+                                       ) : (
+                                          <span className="font-display text-xl font-black">{Math.floor(editedDurationSeconds / 60)}</span>
+                                       )}
+                                       <span className="text-xs font-bold">{t.tracker.timeWarning.minutes}</span>
+                                    </div>
+                                 </div>
+
+                                 <input
+                                    type="range"
+                                    min="60"
+                                    max="1800"
+                                    step="60"
+                                    value={Math.min(editedDurationSeconds, 1800)}
+                                    onChange={(e) => {
+                                       const mins = parseInt(e.target.value);
+                                       const currentSecs = editedDurationSeconds % 60;
+                                       setEditedDurationSeconds(mins + currentSecs);
+                                    }}
+                                    className="w-full h-8 cursor-pointer"
+                                 />
+
+                                 {/* 快捷按钮 */}
+                                 <div className="flex gap-2 justify-center">
+                                    {[3, 5, 8, 10, 15].map((min) => (
+                                       <button
+                                          key={min}
+                                          onClick={() => {
+                                             const currentSecs = editedDurationSeconds % 60;
+                                             setEditedDurationSeconds(min * 60 + currentSecs);
+                                          }}
+                                          className={`px-3 py-1.5 rounded-lg border-2 border-black font-bold text-sm transition-all ${
+                                             Math.floor(editedDurationSeconds / 60) === min
+                                                ? 'bg-dopa-lime shadow-none translate-y-0.5'
+                                                : 'bg-white shadow-neo-sm'
+                                          }`}
+                                       >
+                                          {min}{t.tracker.timeWarning.minutes}
+                                       </button>
+                                    ))}
+                                 </div>
+                              </div>
+
+                              {/* 结束时间：仅支持滚轮/原生选择器 */}
+                              {state.startTime && (
+                                 <div className="mt-4 bg-white border-2 border-black rounded-xl p-4 flex flex-col gap-2">
+                                    <div className="flex justify-between items-center">
+                                       <span className="text-sm font-bold text-gray-600 uppercase">{t.tracker.timeWarning.endTimeLabel}</span>
+                                    </div>
+                                    <div className="relative group bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 p-2 flex justify-center items-center">
+                                       <input
+                                          type="time"
+                                          step="1"
+                                          value={formatTimeStr(new Date(state.startTime.getTime() + editedDurationSeconds * 1000))}
+                                          onChange={(e) => {
+                                             const [h, m, s] = e.target.value.split(':').map(Number);
+                                             const start = state.startTime!;
+                                             const newEnd = new Date(start);
+                                             newEnd.setHours(h, m, s || 0, 0);
+                                             const diffSecs = Math.max(1, Math.round((newEnd.getTime() - start.getTime()) / 1000));
+                                             setEditedDurationSeconds(diffSecs);
+                                          }}
+                                          className="font-mono font-black text-2xl bg-transparent border-none outline-none text-center w-full cursor-pointer"
+                                          style={{ WebkitAppearance: 'none' }}
+                                       />
+                                       <div className="absolute right-3 pointer-events-none opacity-40">
+                                          <span className="material-icons-round">schedule</span>
+                                       </div>
+                                    </div>
+                                 </div>
+                              )}
+                           </div>
+
+                           <div className="flex gap-3">
+                              <button
+                                 onClick={() => setTimeEditMode(false)}
+                                 className="flex-1 py-3 rounded-xl font-black border-4 border-black bg-white text-black shadow-neo hover:shadow-none hover:translate-y-0.5 transition-all uppercase neo-press"
+                              >
+                                 {t.tracker.timeWarning.cancelBtn}
+                              </button>
+                              <button
+                                 onClick={handleConfirmTimeEdit}
+                                 disabled={saving}
+                                 className="flex-[2] py-3 rounded-xl font-black border-4 border-black bg-dopa-lime text-black shadow-neo hover:shadow-none hover:translate-y-0.5 transition-all flex items-center justify-center gap-2 uppercase neo-press disabled:opacity-50"
+                              >
+                                 <span className="material-icons-round">save</span>
+                                 {saving ? (
+                                    <div className="flex gap-1 items-center h-5 px-4">
+                                       <span className="w-1.5 h-1.5 bg-black rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                                       <span className="w-1.5 h-1.5 bg-black rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                                       <span className="w-1.5 h-1.5 bg-black rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                                    </div>
+                                 ) : t.tracker.timeWarning.confirmBtn}
+                              </button>
+                           </div>
+                        </>
+                     )}
+                  </div>
+               </div>
+            </div>
+         )}
+
       </div>
    );
-}
+}

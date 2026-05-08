@@ -159,6 +159,18 @@ export const zh = {
       type5: "5型", desc5: "断开的软块",
       type6: "6型", desc6: "糊状，边缘粗糙",
       type7: "7型", desc7: "水状，无固体 (喷射)",
+    },
+    timeWarning: {
+      title: "⏰ 时间异常检测",
+      description: "检测到记录时长超过 15 分钟，\n你是不是忘记按结束了？",
+      editBtn: "修改时间",
+      keepBtn: "不用改，直接提交",
+      editTitle: "调整结束时间",
+      durationLabel: "持续时间",
+      endTimeLabel: "结束时间",
+      minutes: "分钟",
+      confirmBtn: "确认修改",
+      cancelBtn: "返回",
     }
   },
   colors: {
@@ -481,6 +493,18 @@ export const en = {
       type5: "Type 5", desc5: "Soft Blobs",
       type6: "Type 6", desc6: "Mushy Consistency",
       type7: "Type 7", desc7: "Liquid (Watery)",
+    },
+    timeWarning: {
+      title: "⏰ TIME ALERT",
+      description: "Duration exceeds 15 minutes.\nDid you forget to stop?",
+      editBtn: "EDIT TIME",
+      keepBtn: "KEEP & SUBMIT",
+      editTitle: "ADJUST END TIME",
+      durationLabel: "DURATION",
+      endTimeLabel: "END TIME",
+      minutes: "min",
+      confirmBtn: "CONFIRM",
+      cancelBtn: "BACK",
     }
   },
   colors: {

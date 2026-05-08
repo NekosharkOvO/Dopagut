@@ -57,6 +57,9 @@ const AppContent: React.FC = () => {
     if (!user || !profile) return;
 
     const checkPendingSession = async () => {
+      // NOTE: 如果当前内存中已有记录状态（运行中或已停止待保存），则不要弹窗干扰
+      if (trackerState.startTime) return;
+
       try {
         const session = await pendingSessionService.getActiveSession(user.id);
         if (session) {
@@ -68,7 +71,7 @@ const AppContent: React.FC = () => {
     };
 
     checkPendingSession();
-  }, [user, profile]);
+  }, [user, profile, trackerState.startTime]);
 
   const handleLogin = async (email: string, password: string) => {
     await signIn(email, password);
@@ -112,6 +115,8 @@ const AppContent: React.FC = () => {
     if (!pendingSession) return;
     try {
       await pendingSessionService.deleteSession(pendingSession.id);
+      // NOTE: 放弃记录后，确保 UI 上的计时器也停止并重置
+      setTrackerState(INITIAL_TRACKER_STATE);
     } catch (err) {
       console.error('删除 pending session 失败:', err);
     }
@@ -158,6 +163,8 @@ const AppContent: React.FC = () => {
 
       await pendingSessionService.deleteSession(pendingSession.id);
       await refreshProfile();
+      // NOTE: 补录成功后，重置 UI 计时状态
+      setTrackerState(INITIAL_TRACKER_STATE);
     } catch (err) {
       console.error('补录失败:', err);
       alert('补录失败，请重试');
